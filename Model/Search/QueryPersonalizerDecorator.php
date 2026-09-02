@@ -12,7 +12,7 @@ use ParkkTech\FastMagento\Model\Search\QueryDecoratorInterface;
 class QueryPersonalizerDecorator implements QueryDecoratorInterface
 {
     public function __construct(
-        private readonly \ParkkTech\FastMagento\Model\Personalization\QueryPersonalizer $personalizer
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\QueryPersonalizer $personalizer
     ) {
     }
 

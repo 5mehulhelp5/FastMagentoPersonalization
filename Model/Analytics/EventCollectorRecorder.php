@@ -12,7 +12,7 @@ use ParkkTech\FastMagento\Model\Analytics\EventRecorderInterface;
 class EventCollectorRecorder implements EventRecorderInterface
 {
     public function __construct(
-        private readonly \ParkkTech\FastMagento\Model\Analytics\EventCollector $events
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Analytics\EventCollector $events
     ) {
     }
 

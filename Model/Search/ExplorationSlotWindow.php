@@ -12,7 +12,7 @@ use ParkkTech\FastMagento\Model\Search\ExplorationWindowInterface;
 class ExplorationSlotWindow implements ExplorationWindowInterface
 {
     public function __construct(
-        private readonly \ParkkTech\FastMagento\Model\Personalization\ExplorationSlot $exploration
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ExplorationSlot $exploration
     ) {
     }
 

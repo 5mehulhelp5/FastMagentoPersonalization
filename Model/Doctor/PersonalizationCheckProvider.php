@@ -35,12 +35,12 @@ class PersonalizationCheckProvider implements CheckProviderInterface
         private readonly ResourceConnection $resource,
         private readonly OpenSearchConfig $openSearchConfig,
         private readonly \Magento\Framework\FlagManager $flagManager,
-        private readonly \ParkkTech\FastMagento\Model\Personalization\ProfileRepository $profileRepository,
-        private readonly \ParkkTech\FastMagento\Model\Personalization\PersonalizationConfig $personalizationConfig,
-        private readonly \ParkkTech\FastMagento\Model\Personalization\ValueDiscrimination $valueDiscrimination,
-        private readonly \ParkkTech\FastMagento\Model\Personalization\ProductExposure $productExposure,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileRepository $profileRepository,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\PersonalizationConfig $personalizationConfig,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination $valueDiscrimination,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProductExposure $productExposure,
         private readonly \ParkkTech\FastMagentoPersonalization\Model\Analytics\CaptureMode $captureMode,
-        private readonly \ParkkTech\FastMagento\Model\Analytics\AbReport $abReport,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Analytics\AbReport $abReport,
         private readonly \Magento\Framework\Config\ScopeInterface $configScope,
         // Deliberately the object manager, not a narrower injected singleton. The interception
         // plugin list (and, in checkPersonalizationCacheWiring(), the event config) caches its
@@ -273,7 +273,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
 
         // --- boosts can MATTER: the catalogue-side discrimination table -----------------------
         if (!$this->valueDiscrimination->isAvailable(
-            \ParkkTech\FastMagento\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
+            \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
         )) {
             $out[] = Check::fail(
                 self::G_PERSONALIZATION,
@@ -302,10 +302,10 @@ class PersonalizationCheckProvider implements CheckProviderInterface
                     sprintf(
                         '%d listing doc(s) / %d search doc(s), measured %s',
                         $this->valueDiscrimination->getTotalDocs(
-                            \ParkkTech\FastMagento\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
+                            \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
                         ),
                         $this->valueDiscrimination->getTotalDocs(
-                            \ParkkTech\FastMagento\Model\Personalization\ValueDiscrimination::TARGET_SERVING
+                            \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_SERVING
                         ),
                         (string) $builtAt
                     )
@@ -357,7 +357,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             foreach ($factAttributes as $code) {
                 if (!$this->valueDiscrimination->describe(
                     $code,
-                    \ParkkTech\FastMagento\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
+                    \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
                 )) {
                     $unmeasured[] = $code;
                 }
@@ -454,7 +454,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
                 '%d product(s), %d judged (>= %d impressions), measured %s',
                 (int) ($exposure['products'] ?? 0),
                 (int) ($exposure['judged'] ?? 0),
-                \ParkkTech\FastMagento\Model\Personalization\ProductExposure::MIN_IMPRESSIONS,
+                \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProductExposure::MIN_IMPRESSIONS,
                 (string) ($exposure['built_at'] ?? '')
             );
 

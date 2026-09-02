@@ -23,7 +23,7 @@ use ParkkTech\FastMagento\Plugin\LinkProductCollectionPlugin;
 class LinkProductCollectionPersonalizePlugin
 {
     public function __construct(
-        private readonly \ParkkTech\FastMagento\Model\Personalization\QueryPersonalizer $personalizer,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\QueryPersonalizer $personalizer,
         private readonly StoreManagerInterface $storeManager
     ) {
     }
@@ -54,7 +54,7 @@ class LinkProductCollectionPersonalizePlugin
 
             $reordered = $this->personalizer->reorderDocuments(
                 $ordered,
-                \ParkkTech\FastMagento\Model\Personalization\PersonalizationConfig::SURFACE_RECOMMENDATIONS,
+                \ParkkTech\FastMagentoPersonalization\Model\Personalization\PersonalizationConfig::SURFACE_RECOMMENDATIONS,
                 (int) $this->storeManager->getStore()->getId()
             );
             $newIds = [];
