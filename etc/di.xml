@@ -1,3 +1,18 @@
 <?xml version="1.0"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- Register the personalisation section into core's fastmagento:doctor. -->
+    <type name="ParkkTech\FastMagento\Model\Doctor\Diagnostics">
+        <arguments>
+            <argument name="checkProviders" xsi:type="array">
+                <item name="personalization" xsi:type="object">ParkkTech\FastMagentoPersonalization\Model\Doctor\PersonalizationCheckProvider</item>
+            </argument>
+        </arguments>
+    </type>
+    <!-- Diagnostics constructs the provider above, so the provider must not construct Diagnostics
+         eagerly: a Proxy breaks the cycle and resolves on first use. -->
+    <type name="ParkkTech\FastMagentoPersonalization\Model\Doctor\PersonalizationCheckProvider">
+        <arguments>
+            <argument name="diagnostics" xsi:type="object">ParkkTech\FastMagento\Model\Doctor\Diagnostics\Proxy</argument>
+        </arguments>
+    </type>
 </config>
