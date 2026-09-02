@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <!-- Product view + dwell reporting. The marker is shopper-independent so it can live inside
+             a cached page; identity is resolved from the beacon request, not embedded here. -->
+        <referenceContainer name="content">
+            <block class="Magento\Catalog\Block\Product\View"
+                   name="fastmagento.analytics.view_marker"
+                   template="ParkkTech_FastMagentoPersonalization::analytics/view-marker.phtml"/>
+        </referenceContainer>
+    </body>
+</page>

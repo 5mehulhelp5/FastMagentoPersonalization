@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework/View/Layout/etc/page_configuration.xsd">
+    <head>
+        <!--
+            Self-contained capture bundle (view/dwell, impressions, facet selections). Same
+            dependency-free <script defer> shape as core's fastmagento.js and independent of it:
+            either bundle runs correctly when the other is not deployed.
+        -->
+        <script src="ParkkTech_FastMagentoPersonalization::js/fastmagento-personalization.js" defer="true"/>
+    </head>
+    <body>
+        <!--
+            Analytics boot data. On every page, because a facet selection can be made from any
+            listing and — with a full-page cache in front — the browser is the only thing that sees
+            it. Store-level values only, so it caches like any other markup.
+        -->
+        <referenceContainer name="content">
+            <block class="ParkkTech\FastMagentoPersonalization\Block\Analytics\Init"
+                   name="fastmagento.analytics.init"
+                   template="ParkkTech_FastMagentoPersonalization::analytics-init.phtml"/>
+        </referenceContainer>
+    </body>
+</page>

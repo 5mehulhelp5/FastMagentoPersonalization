@@ -1,0 +1,17 @@
+<?php
+/**
+ * The products this listing page is showing, as id + path.
+ *
+ * An inert JSON island, like the other boot data here, for the same reason: Hyvä ships no RequireJS
+ * so `text/x-magento-init` would render and never run. Emitted only when there is something to say.
+ *
+ * @var \ParkkTech\FastMagentoPersonalization\Block\Analytics\ListingMarker $block
+ */
+$products = $block->getListingProducts();
+if (!$products) {
+    return;
+}
+?>
+<script type="application/json" id="fm-listing-products">
+    <?= /* @noEscape */ json_encode($products, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+</script>

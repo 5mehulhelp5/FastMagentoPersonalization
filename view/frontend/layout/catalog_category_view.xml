@@ -1,0 +1,27 @@
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+
+    <!--
+      Category listing is served natively (MySQL) for now. The custom
+      Block\Product\ListProduct -> Model\Search\ProductSearch path injects the raw
+      AdvancedSearch ClientInterface (no DI preference -> "Cannot instantiate
+      interface" on category pages) and the block/template contract is incomplete.
+      Serving category listings from OpenSearch is Phase 2 (read path) / 2L (layered
+      nav) — see docs/OPENSEARCH-SERVING-LAYER-PLAN.md. Disabled to keep category
+      pages working until that lands.
+    -->
+    <body>
+        <!--
+            Product ids for the listing, so impressions do not depend on theme markup. Hyvä happens
+            to render data-product-id on its cards; Luma — and therefore Breeze — renders nothing of
+            the kind, so relying on it collected impressions on one theme out of three and reported
+            an empty denominator on the others. Placed at the end of the body so the listing block
+            has already loaded its collection: this reads that collection, it never builds one.
+        -->
+        <referenceContainer name="before.body.end">
+            <block class="ParkkTech\FastMagentoPersonalization\Block\Analytics\ListingMarker"
+                   name="fastmagento.analytics.listing_marker"
+                   template="ParkkTech_FastMagentoPersonalization::analytics/listing-products.phtml"/>
+        </referenceContainer>
+    </body>
+</page>

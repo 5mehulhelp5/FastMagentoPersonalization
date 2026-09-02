@@ -407,14 +407,17 @@ class PersonalizationCheckProvider implements CheckProviderInterface
                 'server-side — no full-page cache, so PHP sees every listing request'
             );
         } else {
-            $deployed = $this->diagnostics->deployedBundleCarries('initFacetTracking');
+            $deployed = $this->diagnostics->deployedBundleCarries(
+                'initFacetTracking',
+                'ParkkTech_FastMagentoPersonalization/js/fastmagento-personalization.js'
+            );
             if ($deployed === null) {
                 $out[] = Check::warn(
                     self::G_PERSONALIZATION,
                     'Facet capture',
                     'browser-side (full-page cache is on) — but the deployed bundle could not be read',
-                    'Facet selections are reported by pub/static .../ParkkTech_FastMagento/js/'
-                    . 'fastmagento.js. If it is missing, nothing is recording them.'
+                    'Facet selections are reported by pub/static .../ParkkTech_FastMagentoPersonalization/js/'
+                    . 'fastmagento-personalization.js. If it is missing, nothing is recording them.'
                 );
             } elseif ($deployed) {
                 $out[] = Check::ok(
@@ -429,7 +432,8 @@ class PersonalizationCheckProvider implements CheckProviderInterface
                     'browser-side is required (full-page cache is on) but the DEPLOYED bundle does '
                     . 'not report facet selections — they are being lost',
                     'The deployed copy is stale. Delete it first, because -f does not overwrite: '
-                    . 'rm pub/static/frontend/*/*/*/ParkkTech_FastMagento/js/fastmagento.js && '
+                    . 'rm pub/static/frontend/*/*/*/ParkkTech_FastMagentoPersonalization/js/'
+                    . 'fastmagento-personalization.js && '
                     . 'bin/magento setup:static-content:deploy -f -a frontend '
                     . '--exclude-theme Swissup/breeze-blank'
                 );

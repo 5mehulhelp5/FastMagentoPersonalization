@@ -1,0 +1,18 @@
+<?php
+/**
+ * Carries the product id (and base url) into the DOM so the client can report a view.
+ *
+ * Nothing here varies by shopper, which is the point: the marker sits inside a full-page-cached
+ * page and must be identical for everyone, or it would defeat the cache it lives in. Who is looking
+ * is resolved server-side from the request the beacon makes, never embedded here.
+ *
+ * @var \Magento\Catalog\Block\Product\View $block
+ */
+$product = $block->getProduct();
+if (!$product || !$product->getId()) {
+    return;
+}
+?>
+<div data-fm-product-id="<?= (int) $product->getId() ?>"
+     data-fm-base-url="<?= $block->escapeHtmlAttr($block->getBaseUrl()) ?>"
+     hidden></div>

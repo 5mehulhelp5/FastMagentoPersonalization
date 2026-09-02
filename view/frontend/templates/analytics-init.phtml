@@ -1,0 +1,17 @@
+<?php
+/**
+ * Analytics boot data.
+ *
+ * An inert application/json island for the same reason the autocomplete config is one: Hyvä ships
+ * no RequireJS, so `text/x-magento-init` would render and never execute. The dependency-free
+ * bundle reads this on DOMContentLoaded and the identical markup works on Luma, Breeze and Hyvä.
+ *
+ * Store-level values only — safe in a cached page, and deliberately containing nothing about the
+ * shopper looking at it.
+ *
+ * @var \ParkkTech\FastMagentoPersonalization\Block\Analytics\Init $block
+ */
+?>
+<script type="application/json" id="fm-analytics-config">
+    <?= /* @noEscape */ json_encode($block->getAnalyticsConfig(), JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+</script>
