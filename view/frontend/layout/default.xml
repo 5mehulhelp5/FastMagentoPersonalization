@@ -11,13 +11,15 @@
     </head>
     <body>
         <!--
-            Analytics boot data. On every page, because a facet selection can be made from any
+            Analytics boot data. after= keeps the block where core's default.xml used to declare
+            it (between the autocomplete init and the footer credit) so page markup is unchanged. On every page, because a facet selection can be made from any
             listing and — with a full-page cache in front — the browser is the only thing that sees
             it. Store-level values only, so it caches like any other markup.
         -->
         <referenceContainer name="content">
             <block class="ParkkTech\FastMagentoPersonalization\Block\Analytics\Init"
                    name="fastmagento.analytics.init"
+                   after="fastmagento.autocomplete.init"
                    template="ParkkTech_FastMagentoPersonalization::analytics-init.phtml"/>
         </referenceContainer>
     </body>
