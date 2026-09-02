@@ -1,0 +1,29 @@
+{
+    "name": "parkktech/fastmagento-personalization",
+    "description": "FastMagento Personalization — per-shopper profiles built from browsing, search, facet, review and purchase signals, applied to FastMagento's OpenSearch-served listings and search. Requires FastMagento.",
+    "type": "magento2-module",
+    "license": [
+        "OSL-3.0",
+        "AFL-3.0"
+    ],
+    "authors": [
+        {
+            "name": "ParkkTech",
+            "homepage": "http://parkktech.com/",
+            "role": "Developer"
+        }
+    ],
+    "homepage": "https://github.com/parkktech/FastMagentoPersonalization",
+    "require": {
+        "php": "~8.1.0||~8.2.0||~8.3.0||~8.4.0||~8.5.0",
+        "parkktech/fastmagento": "@dev"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "ParkkTech\\FastMagentoPersonalization\\": ""
+        }
+    }
+}
