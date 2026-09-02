@@ -21,4 +21,11 @@
                 type="ParkkTech\FastMagentoPersonalization\Plugin\LinkProductCollectionPersonalizePlugin"
                 sortOrder="10"/>
     </type>
+    <!-- Search-stack seams: replace core's no-op defaults with the real implementations. -->
+    <preference for="ParkkTech\FastMagento\Model\Search\QueryDecoratorInterface"
+                type="ParkkTech\FastMagentoPersonalization\Model\Search\QueryPersonalizerDecorator"/>
+    <preference for="ParkkTech\FastMagento\Model\Search\ExplorationWindowInterface"
+                type="ParkkTech\FastMagentoPersonalization\Model\Search\ExplorationSlotWindow"/>
+    <preference for="ParkkTech\FastMagento\Model\Analytics\EventRecorderInterface"
+                type="ParkkTech\FastMagentoPersonalization\Model\Analytics\EventCollectorRecorder"/>
 </config>
