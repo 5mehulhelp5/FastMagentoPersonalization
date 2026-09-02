@@ -15,4 +15,10 @@
             <argument name="diagnostics" xsi:type="object">ParkkTech\FastMagento\Model\Doctor\Diagnostics\Proxy</argument>
         </arguments>
     </type>
+    <!-- Personalise the display order of Related / Up-sell / Cross-sell rows (re-order only). -->
+    <type name="ParkkTech\FastMagento\Plugin\LinkProductCollectionPlugin">
+        <plugin name="parkktech_fastmagento_personalization_link_reorder"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\LinkProductCollectionPersonalizePlugin"
+                sortOrder="10"/>
+    </type>
 </config>
