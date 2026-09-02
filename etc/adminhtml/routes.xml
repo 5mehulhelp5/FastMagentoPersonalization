@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/routes.xsd">
+    <router id="admin">
+        <!-- Share core's `fastmagento` admin front name so Controller/Adminhtml/Personalization/Index
+             answers at admin/fastmagento/personalization/index from this module. Verified live in
+             phase 12 wave 7: without this entry the admin router returns 404. -->
+        <route id="fastmagento" frontName="fastmagento">
+            <module name="ParkkTech_FastMagentoPersonalization"/>
+        </route>
+    </router>
+</config>

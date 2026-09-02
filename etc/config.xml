@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <fastmagento>
+            <!-- Personalisation. Two switches on purpose: profiles are BUILT whether or not they
+                 are USED, so the data is already there when a merchant switches serving on, and so
+                 an A/B can compare personalised against control without a cold start. Application
+                 ships OFF; each surface has its own impact dial (0-100) because the right strength
+                 differs by surface — a recommendation row can lean on it far harder than a
+                 category listing, where the merchant's own sort order is the point. -->
+            <personalization>
+                <build_profiles>1</build_profiles>
+                <enabled>0</enabled>
+                <impact_plp>25</impact_plp>
+                <impact_search>25</impact_search>
+                <impact_recommendations>50</impact_recommendations>
+                <min_strength>35</min_strength>
+                <min_confidence>50</min_confidence>
+                <half_life_days>180</half_life_days>
+                <max_boost_terms>2</max_boost_terms>
+                <!-- Which catalogue attribute holds each recognised fact shape, as
+                     `shape:attribute_code`. Ships EMPTY: only the merchant knows whether a
+                     four-digit year in a search box means a model year, a vintage or nothing
+                     at all, and guessing would rank a catalogue on a coincidence. Unmapped
+                     facts are still recorded and still shown to the shopper. -->
+                <fact_attributes></fact_attributes>
+                <fact_weight>300</fact_weight>
+                <!-- §5 exploration: percent of page one lent to under-exposed products. Inert until
+                     the master switch is on AND the exposure table has been measured. -->
+                <exploration_percent>10</exploration_percent>
+                <!-- The simple controls. weight_mode: less | normal | more | auto. auto_weight_value
+                     is OWNED BY THE TUNER — it writes here so serving reads stay inside the cached
+                     config. ab_enabled splits shoppers 50/50 with a held-out control. -->
+                <weight_mode>normal</weight_mode>
+                <auto_weight_value>1.0</auto_weight_value>
+                <ab_enabled>0</ab_enabled>
+                <preselect_variant>1</preselect_variant>
+                <collect_events>1</collect_events>
+                <event_weight>150</event_weight>
+                <view_weight>25</view_weight>
+            </personalization>
+        </fastmagento>
+    </default>
+</config>

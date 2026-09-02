@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework/Menu/etc/menu.xsd">
+    <menu>
+        <!-- Contributed under core's FastMagento menu. module= names THIS module so the entry
+             disappears when it is disabled; id/resource/action are unchanged. -->
+        <add id="ParkkTech_FastMagento::personalization"
+             title="Personalisation Dashboard"
+             module="ParkkTech_FastMagentoPersonalization"
+             parent="ParkkTech_FastMagento::main_menu"
+             sortOrder="25"
+             action="fastmagento/personalization/index"
+             resource="ParkkTech_FastMagento::personalization"/>
+    </menu>
+</config>

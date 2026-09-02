@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <!-- Merged by id into core's Stores > Configuration > FastMagento section; the config paths
+             (fastmagento/personalization/*) are unchanged. -->
+        <section id="fastmagento" translate="label" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+            <group id="personalization" translate="label" sortOrder="27" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Personalisation (beta)</label>
+                <comment><![CDATA[Tailors what shoppers see to what they have <strong>bought, searched for and chosen</strong>. Three controls; the machinery behind them lives under <em>Advanced</em>. <strong>Tracking is always on</strong> — profiles are built and events recorded whether or not personalisation is applied, so the moment you switch it on it is warm, and an A/B test starts with weeks of labelled history rather than from zero. Personalisation <strong>re-orders</strong> results; it never hides a product. The <em>Personalisation Dashboard</em> (FastMagento menu) shows what all of this is doing.]]></comment>
+
+                <field id="enabled" translate="label comment" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Apply To Storefront</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Use profiles to re-order category listings, search results, up-sells and cross-sells. Off by default. With this off, profiles are still built and can be inspected via <em>bin/magento fastmagento:profile:inspect</em>.]]></comment>
+                </field>
+
+                <field id="weight_mode" translate="label comment" type="select" sortOrder="21" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Personalisation Weight</label>
+                    <source_model>ParkkTech\FastMagentoPersonalization\Model\Config\Source\WeightMode</source_model>
+                    <comment><![CDATA[How hard personalisation pushes, in one dial. <strong>Normal</strong> is the tuned default. <strong>Less</strong> halves it — for stores where merchandising must dominate. <strong>More</strong> nearly doubles it. <strong>Auto</strong> hands the dial to the store itself: a nightly job compares the conversion of personalised shoppers against the A/B control and nudges the weight toward whatever converts best — so Auto needs the A/B test running, and holds still (saying why, on the dashboard) until it has enough data to act on.]]></comment>
+                    <depends><field id="enabled">1</field></depends>
+                </field>
+
+                <field id="ab_enabled" translate="label comment" type="select" sortOrder="22" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>A/B Test</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Splits shoppers 50/50: half get personalisation, half get the storefront exactly as it is today. The dashboard compares what each half buys — <strong>this is the only way to know personalisation is selling more</strong>, rather than merely ranking differently. Assignment is sticky (the same shopper stays in the same half across visits and login) and costs the page cache nothing. Required for Auto weight.]]></comment>
+                    <depends><field id="enabled">1</field></depends>
+                </field>
+
+                <group id="advanced" translate="label" sortOrder="900" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Advanced</label>
+                    <comment><![CDATA[The machinery under the three dials above. The defaults are the measured ones; change these when you know why.]]></comment>
+
+                    <field id="build_profiles" translate="label comment" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Build Shopper Profiles</label>
+                        <config_path>fastmagento/personalization/build_profiles</config_path>
+                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                        <comment>Aggregate purchase, review and category history into per-shopper profiles. Runs off the request path and does not affect the storefront on its own. Leave on: turning it off means a cold start whenever you enable serving.</comment>
+                    </field>
+
+                    <field id="collect_events" translate="label comment" type="select" sortOrder="15" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Record Searches And Facet Selections</label>
+                        <config_path>fastmagento/personalization/collect_events</config_path>
+                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                        <comment><![CDATA[The two strongest signals a storefront already sees and normally throws away. A purchase says what someone ended up with after stock, price and delivery had their say; a <strong>search</strong> or a <strong>facet click</strong> says what they were actually looking for. Recorded at the moment it happens and costs no SQL. On a store with a full-page cache the browser reports facet selections, because a cached listing page never reaches PHP at all — so keep the storefront JavaScript deployed, and <em>bin/magento fastmagento:doctor</em> will tell you if it is stale. Independent of the other two switches — you can record without profiling, and profile without serving.]]></comment>
+                    </field>
+
+                    <field id="impact_plp" translate="label comment" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Impact — Category Listings (0-100)</label>
+                        <config_path>fastmagento/personalization/impact_plp</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-100</validate>
+                        <comment>How hard personalisation pushes on a PLP. Lower than the others by default: a category page has a merchant-chosen order and personalisation should nudge it, not overrule it. 0 disables it for this surface.</comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="impact_search" translate="label comment" type="text" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Impact — Search Results (0-100)</label>
+                        <config_path>fastmagento/personalization/impact_search</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-100</validate>
+                        <comment>Applied after textual relevance, so a shopper searching for something specific still gets it. 0 disables it for this surface.</comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="impact_recommendations" translate="label comment" type="text" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Impact — Related, Up-sell &amp; Cross-sell (0-100)</label>
+                        <config_path>fastmagento/personalization/impact_recommendations</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-100</validate>
+                        <comment>Highest by default: a recommendation row exists to be relevant to this shopper, and the merchant's link set is still the only pool it can draw from. 0 disables it for this surface.</comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="preselect_variant" translate="label comment" type="select" sortOrder="52" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Preselect The Variant A Shopper Prefers</label>
+                        <config_path>fastmagento/personalization/preselect_variant</config_path>
+                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                        <comment><![CDATA[On a configurable product, open on the size and colour this shopper usually buys, when they are in stock. Every other option stays selectable and a link they followed with its own choice still wins. This is the one place a size preference is worth acting on: catalogue-wide it is too common to re-order a listing, but among <em>one product's</em> variants it is exactly the right signal.]]></comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="max_boost_terms" translate="label comment" type="text" sortOrder="55" showInDefault="1" showInWebsite="0" showInStore="0">
+                        <label>Maximum Boosted Values Per Surface</label>
+                        <config_path>fastmagento/personalization/max_boost_terms</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-1-10</validate>
+                        <comment><![CDATA[<strong>This is a cache setting before it is a relevance one.</strong> A personalised page needs its own full-page-cache entry, and the number of entries is the number of distinct boost <em>combinations</em> your shoppers produce — so raising this multiplies cached variants of every page. 2 is a deliberate default: the second-strongest value in a real affinity already carries a small fraction of the first's weight, so a third rarely changes an order. Raise it only if personalisation feels too blunt, and watch your cache hit rate when you do.]]></comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="fact_attributes" translate="label comment" type="text" sortOrder="56" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Stated Requirements — Attribute Mapping</label>
+                        <config_path>fastmagento/personalization/fact_attributes</config_path>
+                        <comment><![CDATA[Where a shopper <strong>tells you what they need</strong> in the search box, this is what turns it into ranking. Format <em>shape:attribute_code</em>, comma separated — e.g. <em>year:model_year,dimension:bed_size</em>, mapping a recognised shape (a four-digit year, a dimensional spec) to whichever attribute holds that data on <em>your</em> catalogue. Somebody searching "sheets for a queen bed" or "filters for a 2021 model" has told you the single most useful thing about themselves on their first visit, before they have bought anything; on most stores that lands in a text box and is thrown away. Leave empty and nothing happens: the requirement is still recorded, it just does not rank. <strong>A requirement re-orders like everything else — the products that fit come first, the rest stay on the page.</strong>]]></comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="fact_weight" translate="label comment" type="text" sortOrder="57" showInDefault="1" showInWebsite="0" showInStore="0">
+                        <label>Strength Of A Stated Requirement (%)</label>
+                        <config_path>fastmagento/personalization/fact_weight</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-1000</validate>
+                        <comment><![CDATA[How hard a requirement the shopper <em>stated</em> ranks against a preference we <em>inferred</em>. 100 = the same as the strongest preference; the default of <strong>300</strong> puts it decisively ahead, which is the intended order — what someone typed beats what we worked out about them. Scaled down by how sure we are they meant it, so a requirement guessed from one search ranks far below one they have repeated.]]></comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="exploration_percent" translate="label comment" type="text" sortOrder="59" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Exploration Slot (% Of Page One)</label>
+                        <config_path>fastmagento/personalization/exploration_percent</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-50</validate>
+                        <comment><![CDATA[Every popularity-driven ranking is a rich-get-richer loop: what ranks gets seen, what gets seen gets bought, what gets bought ranks. <strong>Your newest stock never enters the loop.</strong> This reserves the last slots of page one for products that have not been shown enough to judge — measured, on this store the five most-shown products had ~490 impressions and zero sales while the best converter had been shown 69 times. At <strong>10</strong>, roughly one card in ten is a product the shopper would not otherwise have seen; it still matched their search. The least-shown fitting product gets the slot, and rotates out automatically once it has been seen enough to judge. 0 turns it off. Shopper-chosen sorts (price, name) are never touched.]]></comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="event_weight" translate="label comment" type="text" sortOrder="58" showInDefault="1" showInWebsite="0" showInStore="0">
+                        <label>Weight Of Searches And Facets vs Purchases (%)</label>
+                        <config_path>fastmagento/personalization/event_weight</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-500</validate>
+                        <comment><![CDATA[100 = a search or facet click counts the same as a purchase. The default of <strong>150</strong> counts it half again as much, because a purchase records what someone <em>settled for</em> once stock, price and delivery had their say, while a search records what they <em>asked for</em> before any of that interfered. Set to 0 to profile from purchases only.]]></comment>
+                        <depends><field id="build_profiles">1</field></depends>
+                    </field>
+
+                    <field id="min_strength" translate="label comment" type="text" sortOrder="60" showInDefault="1" showInWebsite="0" showInStore="0">
+                        <label>Minimum Affinity Concentration (0-100)</label>
+                        <config_path>fastmagento/personalization/min_strength</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-100</validate>
+                        <comment>How consistently a shopper must pick the same value before it is used. A shopper who buys every colour we sell has no colour preference, and boosting one would invent it. Lower this only if personalisation feels too timid.</comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="min_confidence" translate="label comment" type="text" sortOrder="70" showInDefault="1" showInWebsite="0" showInStore="0">
+                        <label>Minimum Confidence (0-100)</label>
+                        <config_path>fastmagento/personalization/min_confidence</config_path>
+                        <validate>validate-digits validate-digits-range digits-range-0-100</validate>
+                        <comment>How much history is needed before a preference counts. Guards against treating a single purchase as a lifelong taste.</comment>
+                        <depends><field id="enabled">1</field></depends>
+                    </field>
+
+                    <field id="half_life_days" translate="label comment" type="text" sortOrder="80" showInDefault="1" showInWebsite="0" showInStore="0">
+                        <label>Recency Half-Life (days)</label>
+                        <config_path>fastmagento/personalization/half_life_days</config_path>
+                        <validate>validate-digits</validate>
+                        <comment>How quickly older purchases stop counting. At 180, a purchase from six months ago carries half the weight of one from today. 0 disables decay entirely.</comment>
+                    </field>
+                </group>
+            </group>
+        </section>
+    </system>
+</config>

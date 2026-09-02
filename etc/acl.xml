@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Acl/etc/acl.xsd">
+    <acl>
+        <resources>
+            <resource id="Magento_Backend::admin">
+                <!-- The resource id keeps core's prefix on purpose: admin roles already granted
+                     ParkkTech_FastMagento::personalization keep that grant across the package split.
+                     Magento does not tie a resource id to the module that declares it. -->
+                <resource id="ParkkTech_FastMagento::personalization" title="FastMagento Personalisation Dashboard" sortOrder="91"/>
+            </resource>
+        </resources>
+    </acl>
+</config>

@@ -1,0 +1,206 @@
+<?php
+/**
+ * The personalisation dashboard.
+ *
+ * Server-rendered inline SVG throughout — no chart library, no CDN, nothing a CSP can break.
+ * Charts answer the merchant's questions in order: is personalisation selling more (conversion,
+ * with and without), what is that worth (revenue), is the weight the tuner chose CORRELATED with
+ * sales (the dual-axis chart), and which setting has actually performed best (per-weight chart).
+ *
+ * Vocabulary note: the experiment's two halves are "with personalisation" and "without
+ * personalisation" everywhere a person reads. The internal field is still `arm` — an index field
+ * name is an API, a label is not.
+ *
+ * @var \ParkkTech\FastMagentoPersonalization\Block\Adminhtml\Personalization\Dashboard $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+$settings = $block->getSettings();
+$summary = $block->getSummary();
+$daily = $block->getDaily();
+$tuning = $block->getTuningHistory();
+$byWeight = $block->getPerformanceByWeight();
+$days = $block->getWindowDays();
+
+$groups = $summary['arms'] ?? [];
+$with = $groups['personalized'] ?? null;
+$without = $groups['control'] ?? null;
+$lift = $summary['lift'];
+
+$dates = array_keys($daily);
+$convW = []; $convO = []; $revW = []; $revO = [];
+foreach ($daily as $row) {
+    $convW[] = $row['personalized']['conversion'] ?? null;
+    $convO[] = $row['control']['conversion'] ?? null;
+    $revW[] = (float) ($row['personalized']['revenue'] ?? 0);
+    $revO[] = (float) ($row['control']['revenue'] ?? 0);
+}
+$convMax = max(0.0001, max(array_map(fn ($v) => (float) $v, array_filter(array_merge($convW, $convO), fn ($v) => $v !== null)) ?: [0]));
+$revMax = max(1.0, max(array_merge($revW, $revO) ?: [0]));
+
+// The tuner's timeline: weight on the left axis, the conversion it measured on the right.
+$tWeights = []; $tConv = []; $tLabels = [];
+foreach ($tuning as $t) {
+    if (($t['lift'] ?? null) === null) {
+        continue;                        // holds-while-collecting measured nothing; plot decisions
+    }
+    $tWeights[] = (float) ($t['measured_weight'] ?? $t['weight'] ?? 1.0);
+    $tConv[] = $t['conversion_personalized'] ?? null;
+    $tLabels[] = substr((string) ($t['created_at'] ?? ''), 5, 5);
+}
+$tWeightMax = max(1.0, max($tWeights ?: [1.0])) * 1.15;
+$tConvMax = max(0.0001, max(array_map(fn ($v) => (float) $v, array_filter($tConv, fn ($v) => $v !== null)) ?: [0.0001])) * 1.15;
+
+$fmtPct = fn ($v) => $v === null ? '—' : sprintf('%.2f%%', $v * 100);
+$modeLabels = ['less' => 'Less', 'normal' => 'Normal', 'more' => 'More', 'auto' => 'Auto'];
+?>
+<style>
+    .fm-dash { max-width: 1500px; }
+    .fm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 0 0 20px; }
+    .fm-tile { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; }
+    .fm-tile .v { font-size: 22px; font-weight: 600; margin-top: 2px; }
+    .fm-tile .l { color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .fm-tile.good .v { color: #1b7a3d; } .fm-tile.bad .v { color: #b00020; }
+    .fm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .fm-grid .wide { grid-column: 1 / -1; }
+    @media (max-width: 1100px) { .fm-grid { grid-template-columns: 1fr; } }
+    .fm-chart { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 14px 16px; }
+    .fm-chart h3 { margin: 0 0 2px; } .fm-chart .sub { color: #666; font-size: 12px; margin-bottom: 8px; }
+    .fm-legend { margin-bottom: 4px; }
+    .fm-legend span { display: inline-block; margin-right: 14px; font-size: 12px; color: #444; }
+    .fm-legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 5px; }
+    .fm-note { background: #fff8e1; border: 1px solid #e6d28a; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
+    .fm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .fm-table th, .fm-table td { border-bottom: 1px solid #eee; padding: 5px 10px; text-align: right; }
+    .fm-table th:first-child, .fm-table td:first-child { text-align: left; }
+</style>
+
+<div class="fm-dash">
+    <div class="fm-tiles">
+        <div class="fm-tile"><div class="l"><?= $escaper->escapeHtml(__('Personalisation')) ?></div>
+            <div class="v"><?= $settings['enabled'] ? $escaper->escapeHtml(__('On')) : $escaper->escapeHtml(__('Off')) ?></div></div>
+        <div class="fm-tile"><div class="l"><?= $escaper->escapeHtml(__('Weight')) ?></div>
+            <div class="v"><?= $escaper->escapeHtml($modeLabels[$settings['weight_mode']] ?? 'Normal') ?> · <?= sprintf('%.2f×', $settings['weight_factor']) ?></div></div>
+        <div class="fm-tile"><div class="l"><?= $escaper->escapeHtml(__('A/B test')) ?></div>
+            <div class="v"><?= $settings['ab_enabled'] ? $escaper->escapeHtml(__('Running')) : $escaper->escapeHtml(__('Off')) ?></div></div>
+        <div class="fm-tile <?= $lift === null ? '' : ($lift >= 0 ? 'good' : 'bad') ?>">
+            <div class="l"><?= $escaper->escapeHtml(__('Conversion lift, %1 days', $days)) ?></div>
+            <div class="v"><?= $lift === null ? '—' : sprintf('%+.1f%%', $lift * 100) ?></div></div>
+        <?php if ($with !== null): ?>
+        <div class="fm-tile"><div class="l"><?= $escaper->escapeHtml(__('Revenue, personalised')) ?></div>
+            <div class="v"><?= $escaper->escapeHtml(number_format((float) $with['revenue'], 0)) ?></div></div>
+        <?php endif; ?>
+    </div>
+
+    <?php if (!$settings['ab_enabled']): ?>
+        <div class="fm-note"><?= $escaper->escapeHtml(__('The A/B test is off, so there is no comparison group — the numbers below describe everyone. Shoppers are still being labelled, so the day you switch the test on this history is already usable.')) ?></div>
+    <?php endif; ?>
+
+    <div class="fm-grid">
+        <div class="fm-chart">
+            <h3><?= $escaper->escapeHtml(__('Conversion rate')) ?></h3>
+            <div class="sub"><?= $escaper->escapeHtml(__('Daily unique buyers over daily unique shoppers, last %1 days.', $days)) ?></div>
+            <div class="fm-legend"><span><i style="background:#2962ff"></i><?= $escaper->escapeHtml(__('With personalisation')) ?></span><span><i style="background:#9e9e9e"></i><?= $escaper->escapeHtml(__('Without')) ?></span></div>
+            <?php if ($dates): ?>
+            <svg viewBox="0 0 700 190" width="100%" role="img">
+                <line x1="4" y1="186" x2="696" y2="186" stroke="#ddd"/>
+                <text x="6" y="12" font-size="10" fill="#888"><?= sprintf('%.2f%%', $convMax * 100) ?></text>
+                <polyline fill="none" stroke="#9e9e9e" stroke-width="2" points="<?= $escaper->escapeHtmlAttr($block->polyline($convO, $convMax, 700, 190)) ?>"/>
+                <polyline fill="none" stroke="#2962ff" stroke-width="2" points="<?= $escaper->escapeHtmlAttr($block->polyline($convW, $convMax, 700, 190)) ?>"/>
+            </svg>
+            <?php else: ?><p><?= $escaper->escapeHtml(__('No labelled activity in this window yet.')) ?></p><?php endif; ?>
+        </div>
+
+        <div class="fm-chart">
+            <h3><?= $escaper->escapeHtml(__('Daily sales')) ?></h3>
+            <div class="sub"><?= $escaper->escapeHtml(__('Revenue from orders placed by each group.')) ?></div>
+            <div class="fm-legend"><span><i style="background:#2962ff"></i><?= $escaper->escapeHtml(__('With personalisation')) ?></span><span><i style="background:#9e9e9e"></i><?= $escaper->escapeHtml(__('Without')) ?></span></div>
+            <?php if ($dates): ?>
+            <svg viewBox="0 0 700 190" width="100%" role="img">
+                <line x1="4" y1="186" x2="696" y2="186" stroke="#ddd"/>
+                <text x="6" y="12" font-size="10" fill="#888"><?= $escaper->escapeHtml(number_format($revMax, 0)) ?></text>
+                <polyline fill="none" stroke="#9e9e9e" stroke-width="2" points="<?= $escaper->escapeHtmlAttr($block->polyline($revO, $revMax, 700, 190)) ?>"/>
+                <polyline fill="none" stroke="#2962ff" stroke-width="2" points="<?= $escaper->escapeHtmlAttr($block->polyline($revW, $revMax, 700, 190)) ?>"/>
+            </svg>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($settings['weight_mode'] === 'auto'): ?>
+        <div class="fm-chart">
+            <h3><?= $escaper->escapeHtml(__('Weight against sales')) ?></h3>
+            <div class="sub"><?= $escaper->escapeHtml(__('The weight each night actually ran at (left axis) over the conversion personalised shoppers produced that night (right axis). The weight moves slowly on purpose — the tuner refuses to chase single nights, so the solid line should look calm while the dashed one bounces.')) ?></div>
+            <div class="fm-legend"><span><i style="background:#7b1fa2"></i><?= $escaper->escapeHtml(__('Weight')) ?></span><span><i style="background:#1b7a3d"></i><?= $escaper->escapeHtml(__('Conversion, personalised')) ?></span></div>
+            <?php if ($tWeights): ?>
+            <svg viewBox="0 0 700 200" width="100%" role="img">
+                <line x1="4" y1="186" x2="696" y2="186" stroke="#ddd"/>
+                <text x="6" y="12" font-size="10" fill="#7b1fa2"><?= sprintf('%.2f×', $tWeightMax) ?></text>
+                <text x="694" y="12" font-size="10" fill="#1b7a3d" text-anchor="end"><?= sprintf('%.2f%%', $tConvMax * 100) ?></text>
+                <polyline fill="none" stroke="#1b7a3d" stroke-width="2" stroke-dasharray="5,3" points="<?= $escaper->escapeHtmlAttr($block->polyline($tConv, $tConvMax, 700, 190)) ?>"/>
+                <polyline fill="none" stroke="#7b1fa2" stroke-width="2" points="<?= $escaper->escapeHtmlAttr($block->polyline($tWeights, $tWeightMax, 700, 190)) ?>"/>
+            </svg>
+            <?php else: ?><p><?= $escaper->escapeHtml(__('No tuning decisions yet — the nightly job records one per day.')) ?></p><?php endif; ?>
+        </div>
+
+        <div class="fm-chart">
+            <h3><?= $escaper->escapeHtml(__('Which weight sells best')) ?></h3>
+            <div class="sub"><?= $escaper->escapeHtml(__('Every weight the tuner has tried, with the POOLED conversion measured at that setting — all nights\' shoppers and buyers summed, not an average of noisy nightly rates. Taller is better; the nights under each bar say how much evidence stands behind it. This chart is exactly what the tuner decides on.')) ?></div>
+            <?php if ($byWeight): ?>
+            <?php
+                $n = count($byWeight);
+                $bw = max(24, min(70, (int) (620 / max(1, $n))));
+                $convVals = array_map(fn ($r) => (float) ($r['conversion'] ?? 0), $byWeight);
+                $bMax = max(0.0001, max($convVals)) * 1.2;
+                $best = array_search(max($convVals), $convVals, true);
+            ?>
+            <svg viewBox="0 0 700 210" width="100%" role="img">
+                <line x1="4" y1="180" x2="696" y2="180" stroke="#ddd"/>
+                <?php foreach ($byWeight as $i => $r):
+                    $x = 30 + $i * (620 / max(1, $n));
+                    $h = $r['conversion'] !== null ? (int) (160 * $r['conversion'] / $bMax) : 0;
+                ?>
+                <rect x="<?= (int) $x ?>" y="<?= 180 - $h ?>" width="<?= (int) $bw ?>" height="<?= max(1, $h) ?>"
+                      fill="<?= $i === $best ? '#1b7a3d' : '#90a4c8' ?>" rx="2"/>
+                <text x="<?= (int) ($x + $bw / 2) ?>" y="<?= 174 - $h ?>" font-size="11" text-anchor="middle" fill="#333"><?= $fmtPct($r['conversion']) ?></text>
+                <text x="<?= (int) ($x + $bw / 2) ?>" y="195" font-size="11" text-anchor="middle" fill="#333"><?= sprintf('%.2f×', $r['weight']) ?></text>
+                <text x="<?= (int) ($x + $bw / 2) ?>" y="207" font-size="9" text-anchor="middle" fill="#999"><?= (int) $r['nights'] ?> <?= $escaper->escapeHtml(__('night(s)')) ?></text>
+                <?php endforeach; ?>
+            </svg>
+            <?php else: ?><p><?= $escaper->escapeHtml(__('Appears once the tuner has measured at least one setting.')) ?></p><?php endif; ?>
+        </div>
+
+        <div class="fm-chart wide">
+            <h3><?= $escaper->escapeHtml(__('Tuning log')) ?></h3>
+            <table class="fm-table">
+                <tr><th><?= $escaper->escapeHtml(__('When')) ?></th><th><?= $escaper->escapeHtml(__('Action')) ?></th><th><?= $escaper->escapeHtml(__('Weight')) ?></th><th><?= $escaper->escapeHtml(__('Conv. with')) ?></th><th><?= $escaper->escapeHtml(__('Conv. without')) ?></th><th><?= $escaper->escapeHtml(__('Lift')) ?></th><th style="text-align:left"><?= $escaper->escapeHtml(__('Why')) ?></th></tr>
+                <?php foreach (array_slice(array_reverse($tuning), 0, 8) as $t): ?>
+                <tr>
+                    <td><?= $escaper->escapeHtml(substr((string) ($t['created_at'] ?? ''), 0, 10)) ?></td>
+                    <td><?= $escaper->escapeHtml((string) ($t['action'] ?? '')) ?></td>
+                    <td><?= sprintf('%.3f', (float) ($t['weight'] ?? 0)) ?></td>
+                    <td><?= $fmtPct($t['conversion_personalized'] ?? null) ?></td>
+                    <td><?= $fmtPct($t['conversion_control'] ?? null) ?></td>
+                    <td><?= $fmtPct($t['lift'] ?? null) ?></td>
+                    <td style="text-align:left"><?= $escaper->escapeHtml((string) ($t['reason'] ?? '')) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        </div>
+        <?php endif; ?>
+
+        <div class="fm-chart wide">
+            <h3><?= $escaper->escapeHtml(__('Totals — last %1 days', $days)) ?></h3>
+            <table class="fm-table">
+                <tr><th></th><th><?= $escaper->escapeHtml(__('Shoppers')) ?></th><th><?= $escaper->escapeHtml(__('Buyers')) ?></th><th><?= $escaper->escapeHtml(__('Orders')) ?></th><th><?= $escaper->escapeHtml(__('Revenue')) ?></th><th><?= $escaper->escapeHtml(__('Conversion')) ?></th></tr>
+                <?php foreach ([['With personalisation', $with], ['Without personalisation', $without]] as [$label, $t]): if ($t === null) { continue; } ?>
+                <tr>
+                    <td><?= $escaper->escapeHtml(__($label)) ?></td>
+                    <td><?= (int) $t['sessions'] ?></td>
+                    <td><?= (int) $t['buyers'] ?></td>
+                    <td><?= (int) $t['orders'] ?></td>
+                    <td><?= $escaper->escapeHtml(number_format((float) $t['revenue'], 2)) ?></td>
+                    <td><?= $fmtPct($t['conversion']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        </div>
+    </div>
+</div>
