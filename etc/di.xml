@@ -28,4 +28,11 @@
                 type="ParkkTech\FastMagentoPersonalization\Model\Search\ExplorationSlotWindow"/>
     <preference for="ParkkTech\FastMagento\Model\Analytics\EventRecorderInterface"
                 type="ParkkTech\FastMagentoPersonalization\Model\Analytics\EventCollectorRecorder"/>
+    <!-- GraphQL authenticates by token, not session, so the storefront's pre-dispatch capture finds
+         nobody. Same request-scoped holder, so personalisation means one thing on both. -->
+    <type name="Magento\GraphQl\Model\Query\ContextFactory">
+        <plugin name="parkktech_fastmagento_personalization_graphql_context"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\GraphQl\PersonalizationContextPlugin"
+                sortOrder="100"/>
+    </type>
 </config>

@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework/Event/etc/events.xsd">
+    <!-- Personalisation forks the full-page cache by BOOST SIGNATURE, not by shopper. Without it
+         two customers in the same group share one cache entry (measured on magedemo: identical
+         X-Magento-Vary), so the first personalised listing rendered would be served to everyone
+         else in that group. -->
+    <event name="controller_action_predispatch">
+        <observer name="fastmagento_personalization_cache_context" instance="ParkkTech\FastMagentoPersonalization\Observer\PersonalizationCacheContext" />
+    </event>
+
+    <!-- Open a configurable product on the variant this shopper usually buys. Fires with the loaded
+         product, before the configurable block builds its JSON config. -->
+    <event name="catalog_controller_product_view">
+        <observer name="fastmagento_preselect_preferred_variant" instance="ParkkTech\FastMagentoPersonalization\Observer\PreselectPreferredVariant" />
+    </event>
+
+    <!-- Facet selections on a category listing. Fires after the generic pre-dispatch that resolves
+         the shopper, so the event can be attributed. -->
+    <event name="controller_action_predispatch_catalog_category_view">
+        <observer name="fastmagento_capture_category_facets" instance="ParkkTech\FastMagentoPersonalization\Observer\CaptureCategoryFacets" />
+    </event>
+</config>

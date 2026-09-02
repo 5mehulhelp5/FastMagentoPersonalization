@@ -627,7 +627,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
 
         $pluginName = 'parkktech_fastmagento_personalize_search_request';
         $mapperType = \Magento\OpenSearch\SearchAdapter\Mapper::class;
-        $pluginType = \ParkkTech\FastMagento\Plugin\OpenSearch\PersonalizeSearchRequest::class;
+        $pluginType = \ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\PersonalizeSearchRequest::class;
 
         $out = [];
         $saved = $this->configScope->getCurrentScope();
@@ -732,7 +732,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             $observer = $observers['fastmagento_personalization_cache_context'] ?? null;
             $observerHealthy = is_array($observer)
                 && ltrim((string) ($observer['instance'] ?? ''), '\\')
-                    === ltrim(\ParkkTech\FastMagento\Observer\PersonalizationCacheContext::class, '\\');
+                    === ltrim(\ParkkTech\FastMagentoPersonalization\Observer\PersonalizationCacheContext::class, '\\');
 
             $out[] = $observerHealthy
                 ? Check::ok(
@@ -757,7 +757,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             // actually instantiated when swatches are in use.
             $pluginName = 'parkktech_fastmagento_personalized_block_cache_key';
             $swatchPluginName = 'parkktech_fastmagento_personalized_block_cache_key_swatches';
-            $pluginType = \ParkkTech\FastMagento\Plugin\PersonalizedBlockCacheKeyPlugin::class;
+            $pluginType = \ParkkTech\FastMagentoPersonalization\Plugin\PersonalizedBlockCacheKeyPlugin::class;
 
             $blockTargets = [
                 'ConfigurableProduct block' => [
@@ -967,7 +967,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             // etc/frontend/ is simply not loaded for a GraphQL request).
             $mapperType = \Magento\OpenSearch\SearchAdapter\Mapper::class;
             $requestPluginName = 'parkktech_fastmagento_personalize_search_request';
-            $requestPluginType = \ParkkTech\FastMagento\Plugin\OpenSearch\PersonalizeSearchRequest::class;
+            $requestPluginType = \ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\PersonalizeSearchRequest::class;
             $next = $pluginList->getNext($mapperType, 'buildQuery');
             $after = $next[\Magento\Framework\Interception\DefinitionInterface::LISTENER_AFTER] ?? [];
             $present = in_array($requestPluginName, $after, true);
@@ -996,7 +996,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             // from the storefront's pre-dispatch capture.
             $contextFactoryType = \Magento\GraphQl\Model\Query\ContextFactory::class;
             $contextPluginName = 'parkktech_fastmagento_personalization_graphql_context';
-            $contextPluginType = \ParkkTech\FastMagento\Plugin\GraphQl\PersonalizationContextPlugin::class;
+            $contextPluginType = \ParkkTech\FastMagentoPersonalization\Plugin\GraphQl\PersonalizationContextPlugin::class;
             $next = $pluginList->getNext($contextFactoryType, 'create');
             $after = $next[\Magento\Framework\Interception\DefinitionInterface::LISTENER_AFTER] ?? [];
             $present = in_array($contextPluginName, $after, true);
@@ -1071,7 +1071,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
 
         $pluginName = 'parkktech_fastmagento_exploration_response';
         $responseFactoryType = \Magento\Elasticsearch\SearchAdapter\ResponseFactory::class;
-        $pluginType = \ParkkTech\FastMagento\Plugin\OpenSearch\ExplorationResponsePlugin::class;
+        $pluginType = \ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\ExplorationResponsePlugin::class;
 
         $out = [];
         $saved = $this->configScope->getCurrentScope();

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- Personalisation for GraphQL ranking. Registered HERE as well as in the frontend area
+         because GraphQL runs in its own area: a plugin declared only under etc/frontend/ is simply
+         not loaded for a GraphQL request, which is why the first attempt personalised the
+         storefront and silently did nothing over the API. Identity comes from the query context
+         (see Plugin\GraphQl\PersonalizationContextPlugin), not the session. -->
+    <type name="Magento\OpenSearch\SearchAdapter\Mapper">
+        <plugin name="parkktech_fastmagento_personalize_search_request"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\PersonalizeSearchRequest"
+                sortOrder="100"/>
+    </type>
+
+    <!-- The response half of the exploration slot: the request plugin above widens the fetch, this
+         permutes the window and slices the shopper's page back out. Same areas as the request half,
+         necessarily — one without the other either explores nothing or slices a response that was
+         never expanded. -->
+    <type name="Magento\Elasticsearch\SearchAdapter\ResponseFactory">
+        <plugin name="parkktech_fastmagento_exploration_response"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\ExplorationResponsePlugin"
+                sortOrder="100"/>
+    </type>
+</config>

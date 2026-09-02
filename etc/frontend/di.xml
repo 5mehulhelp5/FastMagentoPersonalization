@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- The PLP arm of personalisation. Frontend only: this is a shopper-facing re-ranking and has
+         no business touching an admin product grid or an integration's search. -->
+    <type name="Magento\OpenSearch\SearchAdapter\Mapper">
+        <plugin name="parkktech_fastmagento_personalize_search_request"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\PersonalizeSearchRequest"
+                sortOrder="100"/>
+    </type>
+
+    <!-- The response half of the exploration slot: the request plugin above widens the fetch, this
+         permutes the window and slices the shopper's page back out. Same areas as the request half,
+         necessarily — one without the other either explores nothing or slices a response that was
+         never expanded. -->
+    <type name="Magento\Elasticsearch\SearchAdapter\ResponseFactory">
+        <plugin name="parkktech_fastmagento_exploration_response"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\OpenSearch\ExplorationResponsePlugin"
+                sortOrder="100"/>
+    </type>
+
+    <!-- Block HTML is cached under getCacheKeyInfo() alone and knows nothing about the HTTP
+         context, so a personalised block would be stored once and served to everyone — the page
+         cache leak repeated one level down. Declared on BOTH classes because Magento applies a
+         plugin to the class it names, not to its subclasses, and the swatch renderer is the one
+         actually instantiated when swatches are in use. -->
+    <type name="Magento\ConfigurableProduct\Block\Product\View\Type\Configurable">
+        <plugin name="parkktech_fastmagento_personalized_block_cache_key"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\PersonalizedBlockCacheKeyPlugin"
+                sortOrder="100"/>
+    </type>
+
+    <type name="Magento\Swatches\Block\Product\Renderer\Configurable">
+        <plugin name="parkktech_fastmagento_personalized_block_cache_key_swatches"
+                type="ParkkTech\FastMagentoPersonalization\Plugin\PersonalizedBlockCacheKeyPlugin"
+                sortOrder="100"/>
+    </type>
+</config>

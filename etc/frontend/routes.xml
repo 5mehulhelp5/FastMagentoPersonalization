@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework/App/etc/routes.xsd">
+    <router id="standard">
+        <!-- Share core's `fastmagento` front name so Controller/Event/Collect answers at
+             /fastmagento/event/collect from this module. -->
+        <route id="fastmagento" frontName="fastmagento">
+            <module name="ParkkTech_FastMagentoPersonalization"/>
+        </route>
+    </router>
+</config>
