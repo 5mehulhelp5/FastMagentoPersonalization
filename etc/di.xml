@@ -35,4 +35,17 @@
                 type="ParkkTech\FastMagentoPersonalization\Plugin\GraphQl\PersonalizationContextPlugin"
                 sortOrder="100"/>
     </type>
+    <!-- Personalisation CLI: profiles, exposure, discrimination, the weight dial and explain. -->
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="fastmagento_profile_inspect" xsi:type="object">ParkkTech\FastMagentoPersonalization\Console\Command\ProfileInspect</item>
+                <item name="fastmagento_profile_backfill" xsi:type="object">ParkkTech\FastMagentoPersonalization\Console\Command\ProfileBackfill</item>
+                <item name="fastmagento_personalization_discrimination" xsi:type="object">ParkkTech\FastMagentoPersonalization\Console\Command\DiscriminationBuild</item>
+                <item name="fastmagento_personalization_exposure" xsi:type="object">ParkkTech\FastMagentoPersonalization\Console\Command\ExposureBuild</item>
+                <item name="fastmagento_personalization_tune" xsi:type="object">ParkkTech\FastMagentoPersonalization\Console\Command\TuneWeight</item>
+                <item name="fastmagento_personalization_explain" xsi:type="object">ParkkTech\FastMagentoPersonalization\Console\Command\PersonalizationExplain</item>
+            </argument>
+        </arguments>
+    </type>
 </config>

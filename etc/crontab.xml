@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework/App/etc/crontab.xsd">
+    <group id="default">
+        <!-- Keep profiles, the exposure table and the discrimination table fresh. Incremental —
+             rebuilds only what changed since the last run — so an idle store pays two lookups.
+             Hourly is deliberate: fresh enough that yesterday's browsing shapes today's ranking,
+             coarse enough that the events index is not hammered. -->
+        <job name="fastmagento_personalization_refresh" instance="ParkkTech\FastMagentoPersonalization\Cron\RefreshPersonalization" method="execute">
+            <schedule>15 * * * *</schedule>
+        </job>
+
+        <!-- One auto-weight step per day. Daily, not hourly: conversion needs a day of traffic
+             before a comparison means anything, and an optimiser stepping faster than its signal
+             updates just walks in circles. Holds (and records why) unless mode=Auto with the A/B
+             test running and enough sample. -->
+        <job name="fastmagento_personalization_tune" instance="ParkkTech\FastMagentoPersonalization\Cron\TuneWeight" method="execute">
+            <schedule>10 4 * * *</schedule>
+        </job>
+    </group>
+</config>
