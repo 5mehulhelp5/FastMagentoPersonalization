@@ -139,6 +139,13 @@
     function resolveProductCards() {
         var found = {};
         var out = [];
+        // The product page's own product is a VIEW, never an impression of itself. Luma (and so
+        // Breeze) put data-product-id on the price box, which would otherwise count every product
+        // page load as an impression of that product and inflate its denominator.
+        var viewed = document.querySelector('[data-fm-product-id]');
+        if (viewed) {
+            found[parseInt(viewed.getAttribute('data-fm-product-id'), 10)] = true;
+        }
 
         /**
          * Climb to the card, whatever the theme hung the id on.
