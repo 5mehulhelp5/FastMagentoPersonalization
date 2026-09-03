@@ -8,6 +8,18 @@ Releases are cut automatically from `main` (see `.github/workflows/release.yml`)
 `#minor` / `feat:` for a minor bump, `#major` / `BREAKING CHANGE` for a major one, `[skip release]`
 to skip.
 
+## [Unreleased]
+
+### Added
+- **`Setup/Uninstall`.** `module:uninstall --remove-data` deletes the five OpenSearch indices
+  this module owns, its configuration, cron schedule rows and flags.
+
+### Changed
+- **Doctor on a fresh install.** "Profile index does not exist" and "Discrimination table not
+  measured" are warnings that name the hourly refresh cron (which creates and measures them),
+  not failures. The provider still reports nothing at all when profile building is off, and the
+  core doctor carries no personalisation checks — they exist only while this module is installed.
+
 ## [0.1.0]
 
 First standalone release of the personalisation feature, extracted from FastMagento core's

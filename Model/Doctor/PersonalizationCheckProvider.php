@@ -107,11 +107,14 @@ class PersonalizationCheckProvider implements CheckProviderInterface
 
         // --- index exists -------------------------------------------------------------------
         if (!$this->profileRepository->indexExists()) {
-            $out[] = Check::fail(
+            // Normal right after installation: the hourly fastmagento_personalization_refresh cron
+            // creates the index on its first run. A warning, not a failure, until then.
+            $out[] = Check::warn(
                 self::G_PERSONALIZATION,
                 'Profile index',
-                'Profile building is on but the index does not exist',
-                'Run: bin/magento fastmagento:profile:backfill'
+                'Profile building is on but the index does not exist yet',
+                'The hourly personalisation refresh cron creates it; to do it now run: '
+                . 'bin/magento fastmagento:profile:backfill'
             );
 
             // Serving may still be live in this state — applying is independent of whether the
@@ -276,12 +279,14 @@ class PersonalizationCheckProvider implements CheckProviderInterface
         if (!$this->valueDiscrimination->isAvailable(
             \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
         )) {
-            $out[] = Check::fail(
+            // Also normal right after installation: the hourly refresh cron measures it. Until
+            // then boosts are not gated against the catalogue, which is worth a warning, not a
+            // failure of a store that has been live for ten minutes.
+            $out[] = Check::warn(
                 self::G_PERSONALIZATION,
                 'Discrimination table',
-                'Not measured — boosts cannot be gated against the catalogue',
-                'Without it a preference on a value carried by most of the catalogue produces a '
-                . 'boost that reorders nothing while reporting success. Run: '
+                'Not measured yet — boosts are not gated against the catalogue until it is',
+                'The hourly personalisation refresh cron measures it; to do it now run: '
                 . 'bin/magento fastmagento:personalization:discrimination'
             );
         } else {
