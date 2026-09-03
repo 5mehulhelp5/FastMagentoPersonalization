@@ -1,2 +1,5 @@
 /vendor/
 /composer.lock
+
+# GSD planning state — local only, never committed
+.planning/
