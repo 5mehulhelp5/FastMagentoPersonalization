@@ -1,0 +1,33 @@
+name: Submit to Packagist (one-off)
+
+# Registers this repository as a new package on Packagist. Run once, by hand, from the Actions tab.
+# Creating a package needs the account's MAIN API token (PACKAGIST_MAIN_KEY); the release workflow
+# keeps using the safe token (PACKAGIST_KEY), which is enough for update-package calls.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    environment: PACKAGIST-PROD
+    steps:
+      - name: Create the package on Packagist
+        env:
+          PACKAGIST_USERNAME: ${{ vars.PACKAGIST_USERNAME }}
+          PACKAGIST_MAIN_TOKEN: ${{ secrets.PACKAGIST_MAIN_KEY }}
+        run: |
+          set -euo pipefail
+          USER_NAME="${PACKAGIST_USERNAME:-ParkkTech}"
+          if [ -z "${PACKAGIST_MAIN_TOKEN:-}" ]; then
+            echo "::error::Secret PACKAGIST_MAIN_KEY is not set."; exit 1
+          fi
+          http_code=$(curl -s -o /tmp/resp.json -w '%{http_code}' -X POST \
+            -H 'Content-Type: application/json' \
+            "https://packagist.org/api/create-package?username=${USER_NAME}&apiToken=${PACKAGIST_MAIN_TOKEN}" \
+            -d "{\"repository\":{\"url\":\"https://github.com/${GITHUB_REPOSITORY}\"}}")
+          echo "HTTP ${http_code}"; cat /tmp/resp.json; echo
+          case "$http_code" in
+            200|201|202) echo "Package created." ;;
+            *) echo "::error::Packagist create-package failed (HTTP ${http_code})."; exit 1 ;;
+          esac
