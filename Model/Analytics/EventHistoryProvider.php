@@ -39,6 +39,7 @@ class EventHistoryProvider
         private readonly ClientResolver $clientResolver,
         private readonly EngineResolverInterface $engineResolver,
         private readonly OpenSearchConfig $config,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly PurchaseHistoryProvider $products,
         private readonly FactExtractor $factExtractor
     ) {
@@ -310,7 +311,7 @@ class EventHistoryProvider
 
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => self::MAX_EVENTS,
                     'query' => ['bool' => ['should' => $should, 'minimum_should_match' => 1]],
@@ -350,7 +351,7 @@ class EventHistoryProvider
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 0,
                     'query' => ['term' => ['type' => 'impression']],
@@ -389,7 +390,7 @@ class EventHistoryProvider
 
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 0,
                     'query' => ['bool' => ['must' => $must]],
@@ -431,7 +432,7 @@ class EventHistoryProvider
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 0,
                     'query' => ['range' => ['created_at' => ['gte' => $since]]],
@@ -465,7 +466,7 @@ class EventHistoryProvider
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 1,
                     'query' => ['term' => ['type' => 'impression']],
@@ -494,7 +495,7 @@ class EventHistoryProvider
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 0,
                     'query' => ['term' => ['type' => 'impression']],
@@ -520,7 +521,7 @@ class EventHistoryProvider
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 0,
                     'query' => ['term' => ['customer_id' => $customerId]],

@@ -72,6 +72,7 @@ class AutoWeightTuner
         private readonly ClientResolver $clientResolver,
         private readonly EngineResolverInterface $engineResolver,
         private readonly OpenSearchConfig $openSearchConfig,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly WriterInterface $configWriter,
         private readonly TypeListInterface $cacheTypeList
     ) {
@@ -269,7 +270,7 @@ class AutoWeightTuner
 
         try {
             $client = $this->clientResolver->create($this->engineResolver->getCurrentSearchEngine());
-            $index = $this->openSearchConfig->getTuningIndexName();
+            $index = $this->indexNames->getTuningIndexName();
             if (!$client->indexExists($index)) {
                 $client->createIndex($index, [
                     'settings' => ['number_of_shards' => 1],

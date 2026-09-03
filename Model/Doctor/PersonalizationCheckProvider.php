@@ -34,6 +34,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
         private readonly Diagnostics $diagnostics,
         private readonly ResourceConnection $resource,
         private readonly OpenSearchConfig $openSearchConfig,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly \Magento\Framework\FlagManager $flagManager,
         private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileRepository $profileRepository,
         private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\PersonalizationConfig $personalizationConfig,
@@ -126,7 +127,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             return $out;
         }
 
-        $indexName = $this->openSearchConfig->getUserProfileIndexName();
+        $indexName = $this->indexNames->getUserProfileIndexName();
         $profiles = $this->profileRepository->count();
         $out[] = Check::ok(
             self::G_PERSONALIZATION,
@@ -1165,7 +1166,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             }
             // resolveClient() already returns the OpenSearch client itself.
             $response = $client->search([
-                'index' => $this->openSearchConfig->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
                 'body' => [
                     'size' => 1,
                     'query' => ['match_all' => (object) []],
@@ -1205,7 +1206,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             // impressions are page-rate and swamp everything else, which is the reason they are
             // stored one row per page in the first place.
             $stats = $client->count([
-                'index' => $this->openSearchConfig->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => ['query' => ['terms' => ['type' => ['search', 'facet']]]],
             ]);
 

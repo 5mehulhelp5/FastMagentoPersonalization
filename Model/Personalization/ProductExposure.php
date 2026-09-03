@@ -79,6 +79,7 @@ class ProductExposure
         private readonly EngineResolverInterface $engineResolver,
         private readonly StoreManagerInterface $storeManager,
         private readonly OpenSearchConfig $config,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly WriteLog $writeLog,
         private readonly EventHistoryProvider $events,
         private readonly ResourceConnection $resource
@@ -284,7 +285,7 @@ class ProductExposure
 
         try {
             $this->client()->getOpenSearchClient()->index([
-                'index' => $this->config->getProductExposureIndexName(),
+                'index' => $this->indexNames->getProductExposureIndexName(),
                 'id' => 'store_' . $storeId,
                 'body' => $document,
             ]);
@@ -413,7 +414,7 @@ class ProductExposure
 
         try {
             $response = $this->client()->getOpenSearchClient()->get([
-                'index' => $this->config->getProductExposureIndexName(),
+                'index' => $this->indexNames->getProductExposureIndexName(),
                 'id' => 'store_' . $storeId,
             ]);
             $table = !empty($response['found']) && isset($response['_source']) ? $response['_source'] : null;
@@ -426,7 +427,7 @@ class ProductExposure
 
     public function ensureIndex(): void
     {
-        $indexName = $this->config->getProductExposureIndexName();
+        $indexName = $this->indexNames->getProductExposureIndexName();
         $client = $this->client();
 
         if ($client->indexExists($indexName)) {
@@ -454,7 +455,7 @@ class ProductExposure
     {
         try {
             $this->client()->getOpenSearchClient()->indices()->refresh([
-                'index' => $this->config->getProductExposureIndexName(),
+                'index' => $this->indexNames->getProductExposureIndexName(),
             ]);
         } catch (\Throwable $e) {
             // Only ever called to make a just-written table readable; not worth failing over.

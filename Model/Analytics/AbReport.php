@@ -31,7 +31,8 @@ class AbReport
     public function __construct(
         private readonly ClientResolver $clientResolver,
         private readonly EngineResolverInterface $engineResolver,
-        private readonly OpenSearchConfig $config
+        private readonly OpenSearchConfig $config,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames
     ) {
     }
 
@@ -45,7 +46,7 @@ class AbReport
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => [
                     'size' => 0,
                     'query' => [
@@ -155,7 +156,7 @@ class AbReport
     {
         try {
             $response = $this->client()->getOpenSearchClient()->search([
-                'index' => $this->config->getTuningIndexName(),
+                'index' => $this->indexNames->getTuningIndexName(),
                 'body' => [
                     'size' => max(1, $limit),
                     'sort' => [['created_at' => 'desc']],

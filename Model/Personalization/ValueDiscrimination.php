@@ -87,6 +87,7 @@ class ValueDiscrimination
         private readonly SearchIndexNameResolver $indexNameResolver,
         private readonly StoreManagerInterface $storeManager,
         private readonly OpenSearchConfig $config,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly WriteLog $writeLog
     ) {
     }
@@ -301,7 +302,7 @@ class ValueDiscrimination
         try {
             $this->ensureIndex();
             $this->client()->getOpenSearchClient()->index([
-                'index' => $this->config->getValueDiscriminationIndexName(),
+                'index' => $this->indexNames->getValueDiscriminationIndexName(),
                 'id' => 'store:' . $storeId,
                 'body' => $table,
             ]);
@@ -389,7 +390,7 @@ class ValueDiscrimination
         $table = null;
         try {
             $response = $this->client()->getOpenSearchClient()->get([
-                'index' => $this->config->getValueDiscriminationIndexName(),
+                'index' => $this->indexNames->getValueDiscriminationIndexName(),
                 'id' => 'store:' . $storeId,
             ]);
             if (!empty($response['found']) && isset($response['_source'])) {
@@ -406,7 +407,7 @@ class ValueDiscrimination
 
     public function ensureIndex(): void
     {
-        $indexName = $this->config->getValueDiscriminationIndexName();
+        $indexName = $this->indexNames->getValueDiscriminationIndexName();
         $client = $this->client();
 
         if ($client->indexExists($indexName)) {
@@ -433,7 +434,7 @@ class ValueDiscrimination
     {
         try {
             $this->client()->getOpenSearchClient()->indices()->refresh([
-                'index' => $this->config->getValueDiscriminationIndexName(),
+                'index' => $this->indexNames->getValueDiscriminationIndexName(),
             ]);
         } catch (\Throwable $e) {
             // Only ever called to make a just-written table countable; a stale count is not worth

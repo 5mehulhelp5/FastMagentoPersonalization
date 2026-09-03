@@ -107,10 +107,11 @@ quiet; `fastmagento:doctor` reports which mode is active.
 
 ## Acceptance evidence (summary)
 
-The full evidence lives in the core FastMagento repo — `docs/M3-ACCEPTANCE.md` and
-`docs/EXPLORATION-ACCEPTANCE.md` — because it was produced by core's whole-system harnesses
-(`docs/tools/m2-capture-surfaces.sh`, `docs/tools/m2-query-total-probe.sh`) and is re-verified by
-them. This is what they record, gathered on a live store:
+The full evidence lives in this package — `docs/acceptance/M2-ACCEPTANCE.md`,
+`docs/acceptance/M3-ACCEPTANCE.md` and `docs/acceptance/EXPLORATION-ACCEPTANCE.md` — produced by
+the whole-system harnesses in `docs/tools/` (`m2-capture-surfaces.sh`, `m2-query-total-probe.sh`),
+which measure core with and without this module and re-verify the records on every run.
+This is what they record, gathered on a live store:
 
 - **Off is byte-identical** on PLP, search page, instant search, PDP and GraphQL search, after
   per-surface, A/A-demonstrated normalisation only (SURF-03, EXPL-03).
@@ -126,9 +127,9 @@ them. This is what they record, gathered on a live store:
 - **Doctor covers every wiring point** and was shown to FAIL when each declaration was disabled
   (SURF-05, EXPL-04).
 
-This package's own probes are in `docs/tools/` (`m3-link-reorder.php`, `m2-cohort-ranking.php`,
-`m2-request-body-diff.php`, the `seed-*.php` fixtures); they write their sections into core's
-acceptance documents.
+The per-surface probes (`m3-link-reorder.php`, `m2-cohort-ranking.php`, `m2-request-body-diff.php`)
+and the `seed-*.php` fixtures are in `docs/tools/` too; every tool writes its section into the
+records under `docs/acceptance/`.
 
 ## Constraints
 

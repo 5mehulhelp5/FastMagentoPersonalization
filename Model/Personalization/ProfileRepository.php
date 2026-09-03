@@ -30,6 +30,7 @@ class ProfileRepository
         private readonly ClientResolver $clientResolver,
         private readonly EngineResolverInterface $engineResolver,
         private readonly OpenSearchConfig $config,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly WriteLog $writeLog
     ) {
     }
@@ -60,7 +61,7 @@ class ProfileRepository
         $profile = null;
         try {
             $response = $this->client()->getOpenSearchClient()->get([
-                'index' => $this->config->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
                 'id' => $profileId,
             ]);
             if (!empty($response['found']) && isset($response['_source'])) {
@@ -84,7 +85,7 @@ class ProfileRepository
         try {
             $this->ensureIndex();
             $this->client()->getOpenSearchClient()->index([
-                'index' => $this->config->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
                 'id' => $profileId,
                 'body' => $profile,
             ]);
@@ -104,7 +105,7 @@ class ProfileRepository
     {
         try {
             $this->client()->getOpenSearchClient()->delete([
-                'index' => $this->config->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
                 'id' => $profileId,
             ]);
             unset($this->memo[$profileId]);
@@ -118,7 +119,7 @@ class ProfileRepository
     public function indexExists(): bool
     {
         try {
-            return (bool) $this->client()->indexExists($this->config->getUserProfileIndexName());
+            return (bool) $this->client()->indexExists($this->indexNames->getUserProfileIndexName());
         } catch (\Throwable $e) {
             return false;
         }
@@ -140,7 +141,7 @@ class ProfileRepository
     {
         try {
             $this->client()->getOpenSearchClient()->indices()->refresh([
-                'index' => $this->config->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
             ]);
         } catch (\Throwable $e) {
             // Nothing to refresh, or the cluster is unhappy — the caller only wanted an accurate
@@ -152,7 +153,7 @@ class ProfileRepository
     {
         try {
             $response = $this->client()->getOpenSearchClient()->count([
-                'index' => $this->config->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
             ]);
 
             return (int) ($response['count'] ?? 0);
@@ -175,7 +176,7 @@ class ProfileRepository
     {
         try {
             $response = $this->client()->getOpenSearchClient()->count([
-                'index' => $this->config->getUserProfileIndexName(),
+                'index' => $this->indexNames->getUserProfileIndexName(),
                 'body' => ['query' => ['prefix' => ['profile_id' => 'anon:']]],
             ]);
 
@@ -187,7 +188,7 @@ class ProfileRepository
 
     public function ensureIndex(): void
     {
-        $indexName = $this->config->getUserProfileIndexName();
+        $indexName = $this->indexNames->getUserProfileIndexName();
         $client = $this->client();
 
         if ($client->indexExists($indexName)) {
@@ -219,7 +220,7 @@ class ProfileRepository
      */
     public function getLiveMapping(): ?array
     {
-        $indexName = $this->config->getUserProfileIndexName();
+        $indexName = $this->indexNames->getUserProfileIndexName();
         try {
             $response = $this->client()->getOpenSearchClient()->indices()->getMapping([
                 'index' => $indexName,

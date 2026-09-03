@@ -61,6 +61,7 @@ class EventCollector
         private readonly ClientResolver $clientResolver,
         private readonly EngineResolverInterface $engineResolver,
         private readonly OpenSearchConfig $config,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly PersonalizationConfig $personalizationConfig,
         private readonly AnonymousId $anonymousId,
         private readonly RequestScope $requestScope,
@@ -250,7 +251,7 @@ class EventCollector
 
             $this->ensureIndex();
             $this->client()->getOpenSearchClient()->index([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
                 'body' => $doc,
             ]);
         } catch (\Throwable $e) {
@@ -336,7 +337,7 @@ class EventCollector
 
     public function ensureIndex(): void
     {
-        $indexName = $this->config->getEventIndexName();
+        $indexName = $this->indexNames->getEventIndexName();
         $client = $this->client();
 
         if ($client->indexExists($indexName)) {
@@ -372,7 +373,7 @@ class EventCollector
     {
         try {
             $this->client()->getOpenSearchClient()->indices()->refresh([
-                'index' => $this->config->getEventIndexName(),
+                'index' => $this->indexNames->getEventIndexName(),
             ]);
         } catch (\Throwable $e) {
             // Only ever called to make just-written events countable.
