@@ -18,7 +18,7 @@ use ParkkTech\FastMagentoPersonalization\Model\Analytics\EventCollector;
  * analytics cookie rides the checkout requests like any other same-origin request, so attribution
  * works in all three areas.
  *
- * `sales_order_place_after` rather than a success-page observer, because the success page is
+ * `checkout_submit_all_after` rather than a success-page observer, because the success page is
  * exactly the kind of request that gets lost — closed tabs, redirect wallets, one-page checkouts
  * that confirm inline. The order PLACING is the conversion; whether the shopper ever saw the
  * thank-you page is not.
@@ -26,7 +26,8 @@ use ParkkTech\FastMagentoPersonalization\Model\Analytics\EventCollector;
 class RecordOrderPlaced implements ObserverInterface
 {
     public function __construct(
-        private readonly EventCollector $events
+        private readonly EventCollector $events,
+        private readonly \ParkkTech\FastMagento\Helper\WriteLog $writeLog
     ) {
     }
 
@@ -35,16 +36,22 @@ class RecordOrderPlaced implements ObserverInterface
         try {
             $order = $observer->getEvent()->getData('order');
             if (!$order || !$order->getEntityId()) {
+                // checkout_submit_all_after carries the SAVED order; a missing id here is a bug
+                // worth seeing, not a normal path.
+                $this->writeLog->writeErrorLog('[FastMagento] order event skipped: no saved order on checkout_submit_all_after');
                 return;
             }
 
             $this->events->recordOrder(
                 (int) $order->getEntityId(),
                 (float) $order->getGrandTotal(),
-                (int) $order->getTotalItemCount()
+                (int) $order->getTotalItemCount(),
+                $order->getCustomerId() !== null ? (int) $order->getCustomerId() : null
             );
         } catch (\Throwable $e) {
-            // An order must never fail to place because analytics hiccuped.
+            // An order must never fail to place because analytics hiccuped — but a conversion that
+            // silently goes uncounted is a biased A/B rate, so say what happened.
+            $this->writeLog->writeErrorLog('[FastMagento] order event not recorded: ' . $e->getMessage());
         }
     }
 }

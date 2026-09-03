@@ -2,8 +2,12 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework/Event/etc/events.xsd">
     <!-- Conversion tracking for the A/B dashboard. Global on purpose: checkout completes over
          webapi_rest on this theme stack and over GraphQL for headless — a frontend-area observer
-         would count only some checkouts, which is a biased conversion rate, not a smaller one. -->
-    <event name="sales_order_place_after">
+         would count only some checkouts, which is a biased conversion rate, not a smaller one.
+         checkout_submit_all_after, not sales_order_place_after: the latter fires inside
+         Order::place() BEFORE the order is saved, so the order has no entity id yet and nothing
+         could be recorded. This one fires from QuoteManagement after the save, for every
+         storefront, REST and GraphQL checkout. -->
+    <event name="checkout_submit_all_after">
         <observer name="fastmagento_record_order_placed" instance="ParkkTech\FastMagentoPersonalization\Observer\RecordOrderPlaced" />
     </event>
 </config>

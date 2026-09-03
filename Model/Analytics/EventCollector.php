@@ -205,7 +205,12 @@ class EventCollector
      * tables cannot reconstruct for a guest. Revenue rides along so the dashboard can show sales
      * curves, not just rates.
      */
-    public function recordOrder(int $orderId, float $grandTotal, int $itemCount): void
+    /**
+     * @param int|null $customerId the order's own customer, so a checkout that completes over
+     *        REST or GraphQL — where there is no storefront session or cookie to attribute the
+     *        event from — is still counted for the shopper who placed it
+     */
+    public function recordOrder(int $orderId, float $grandTotal, int $itemCount, ?int $customerId = null): void
     {
         if ($orderId <= 0) {
             return;
@@ -215,20 +220,22 @@ class EventCollector
             'order_id' => $orderId,
             'revenue' => round(max(0.0, $grandTotal), 2),
             'items' => max(0, $itemCount),
-        ]);
+        ], $customerId);
     }
 
     /**
      * @param array<string, mixed> $payload
      */
-    private function record(string $type, array $payload): void
+    private function record(string $type, array $payload, ?int $explicitCustomerId = null): void
     {
         try {
             if (!$this->personalizationConfig->isCollectingEvents()) {
                 return;
             }
 
-            $customerId = $this->requestScope->getCustomerId();
+            $customerId = $explicitCustomerId !== null && $explicitCustomerId > 0
+                ? $explicitCustomerId
+                : $this->requestScope->getCustomerId();
             $anonId = $this->anonymousId->get();
 
             // Nobody to attribute it to and no cookie we could set — a crawler, or a client that
