@@ -62,7 +62,7 @@ Config paths are unchanged from when this shipped inside core.
 
 Per-surface strength dials (`impact_search`, `impact_plp`, `impact_recommendations`, default
 25 / 25 / 50), the gates (`min_strength`, `min_confidence`), decay (`half_life_days`, 180) and the
-A/B test (`ab_enabled`, off) are in the same group and documented in `docs/PERSONALIZATION.md`.
+A/B test (`ab_enabled`, off) are in the same group; each field's admin comment explains it.
 
 ## Operator CLI
 
@@ -107,11 +107,9 @@ quiet; `fastmagento:doctor` reports which mode is active.
 
 ## Acceptance evidence (summary)
 
-The full evidence lives in this package — `docs/acceptance/M2-ACCEPTANCE.md`,
-`docs/acceptance/M3-ACCEPTANCE.md` and `docs/acceptance/EXPLORATION-ACCEPTANCE.md` — produced by
-the whole-system harnesses in `docs/tools/` (`m2-capture-surfaces.sh`, `m2-query-total-probe.sh`),
-which measure core with and without this module and re-verify the records on every run.
-This is what they record, gathered on a live store:
+Measured on a live store with the whole-system harnesses that capture each surface with the
+feature off, with it on, and with the module removed, and compare query counts against recorded
+baselines. In short:
 
 - **Off is byte-identical** on PLP, search page, instant search, PDP and GraphQL search, after
   per-surface, A/A-demonstrated normalisation only (SURF-03, EXPL-03).
@@ -127,21 +125,11 @@ This is what they record, gathered on a live store:
 - **Doctor covers every wiring point** and was shown to FAIL when each declaration was disabled
   (SURF-05, EXPL-04).
 
-The per-surface probes (`m3-link-reorder.php`, `m2-cohort-ranking.php`, `m2-request-body-diff.php`)
-and the `seed-*.php` fixtures are in `docs/tools/` too; every tool writes its section into the
-records under `docs/acceptance/`.
-
 ## Constraints
 
-This package is bound by FastMagento core's operational constraints and locked architecture
-decisions — `docs/CONSTRAINTS.md` in the core repo, including ADR-CONSTRAINTS-21 (exploration never
-touches curated link rows) and the full-page-cache route. That file is not duplicated here.
-
-## Docs
-
-- `docs/PERSONALIZATION.md` — the design: signals, profile, boosts, gates, exploration
-- `docs/USER-INTELLIGENCE.md` — profile internals
-- `docs/BETA-PERSONALIZATION.md` — milestones and recorded evidence during the beta
+Two rules this package never breaks: the exploration slot never touches a curated related /
+up-sell / cross-sell row (it only re-orders them), and every page must be byte-identical with the
+feature off.
 
 ## License
 
