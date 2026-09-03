@@ -10,8 +10,9 @@ It is an **optional companion** to FastMagento core. Core installs and serves wi
 page it touches is byte-identical to core when it is switched off. It ships **dark and off**: nothing
 changes on the storefront until you turn it on.
 
-> Status: beta. No tags or releases yet; this package is installed from a path repository until it
-> is published to Packagist.
+> Status: beta (0.x). Releases are cut automatically from `main` by GitHub Actions (tag + GitHub
+> Release + Packagist update). Requires FastMagento core **2.7 or later** — the first core release
+> that carries the extraction seams; earlier cores do not have them.
 
 ## Requirements
 
@@ -41,8 +42,8 @@ bin/magento setup:static-content:deploy -f
 bin/magento cache:flush
 ```
 
-Once published: `composer require parkktech/fastmagento-personalization` from Packagist, same
-steps after. The module declares `<sequence>` after `ParkkTech_FastMagento` and depends on it in
+From Packagist, once core ≥ 2.7 is available: `composer require parkktech/fastmagento-personalization`,
+same steps after. The module declares `<sequence>` after `ParkkTech_FastMagento` and depends on it in
 `composer.json`; it cannot be installed without core.
 
 Uninstall is `module:disable` + `setup:upgrade`; core keeps serving with no personalisation code

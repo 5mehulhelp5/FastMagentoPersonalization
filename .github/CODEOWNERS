@@ -1,0 +1,4 @@
+# Every change to this repository requires review/approval from @parkktech.
+# Combined with branch protection on master, this means no third party can merge
+# to master without the owner's approval.
+* @parkktech

@@ -16,7 +16,7 @@
     "homepage": "https://github.com/parkktech/FastMagentoPersonalization",
     "require": {
         "php": "~8.1.0||~8.2.0||~8.3.0||~8.4.0||~8.5.0",
-        "parkktech/fastmagento": "@dev"
+        "parkktech/fastmagento": "^2.7"
     },
     "autoload": {
         "files": [
@@ -25,5 +25,20 @@
         "psr-4": {
             "ParkkTech\\FastMagentoPersonalization\\": ""
         }
-    }
+    },
+    "support": {
+        "issues": "https://github.com/parkktech/FastMagentoPersonalization/issues",
+        "source": "https://github.com/parkktech/FastMagentoPersonalization"
+    },
+    "keywords": [
+        "magento",
+        "magento-2",
+        "magento2",
+        "opensearch",
+        "personalization",
+        "personalisation",
+        "recommendations",
+        "search",
+        "fastmagento"
+    ]
 }

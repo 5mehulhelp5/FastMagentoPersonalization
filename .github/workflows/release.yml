@@ -1,0 +1,156 @@
+name: Release
+
+# Continuous release: every push to main (direct commits AND merged PRs) is validated
+# (composer validate + php -l), then computes the next semver tag, creates the tag + a GitHub
+# Release, and updates Packagist. The validate job also runs on pull requests as a merge gate.
+#
+# Version bump is PATCH by default. Control it from the commit / merge-commit message:
+#   #minor  (or a Conventional "feat:")            -> minor bump
+#   #major  (or "BREAKING CHANGE")                 -> major bump
+#   [skip release]  (or [skip ci])                 -> no release for this push
+#
+# Packagist auth comes from the "PACKAGIST-PROD" environment:
+#   secret   PACKAGIST_KEY                          — Packagist API token (required)
+#   var/secret PACKAGIST_USERNAME                    — Packagist username (optional; defaults to ParkkTech)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump level'
+        type: choice
+        default: patch
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Quality gate — runs on PRs and on main. The release job below depends on it, so a
+  # syntax error or an invalid composer.json can never cut a release.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+
+      - name: PHP syntax check (php -l on every file)
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! php -l "$f" >/dev/null 2>&1; then
+              echo "::error file=$f::PHP syntax error"
+              php -l "$f" || true
+              fail=1
+            fi
+          done < <(find . -path ./vendor -prune -o -name '*.php' -print0)
+          if [ "$fail" -ne 0 ]; then echo "::error::PHP lint failed"; exit 1; fi
+          echo "PHP lint passed."
+
+  release:
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: PACKAGIST-PROD
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next version
+        id: ver
+        run: |
+          set -euo pipefail
+          msg="$(git log -1 --pretty=%B)"
+
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] \
+             && printf '%s' "$msg" | grep -qiE '\[skip release\]|\[skip ci\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "Skip requested in commit message."; exit 0
+          fi
+          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "HEAD is already tagged; nothing to do."; exit 0
+          fi
+
+          latest="$(git tag -l 'v*' --sort=-v:refname | head -n1)"
+          [ -z "$latest" ] && latest="v0.0.0"
+          base="${latest#v}"
+          MA="${base%%.*}"; rest="${base#*.}"; MI="${rest%%.*}"; PA="${rest#*.}"
+          PA="${PA%%[!0-9]*}"
+
+          bump="${{ github.event.inputs.bump }}"
+          if [ -z "$bump" ]; then
+            if printf '%s' "$msg" | grep -qiE '#major|BREAKING CHANGE'; then bump=major
+            elif printf '%s' "$msg" | grep -qiE '#minor|^feat(\(|:| )'; then bump=minor
+            else bump=patch; fi
+          fi
+          case "$bump" in
+            major) MA=$((MA+1)); MI=0; PA=0 ;;
+            minor) MI=$((MI+1)); PA=0 ;;
+            *)     PA=$((PA+1)) ;;
+          esac
+          new="v${MA}.${MI}.${PA}"
+          echo "latest=$latest  bump=$bump  ->  new=$new"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "tag=$new"    >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.ver.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.ver.outputs.tag }}" -m "${{ steps.ver.outputs.tag }}"
+          git push origin "${{ steps.ver.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: steps.ver.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            --title "${{ steps.ver.outputs.tag }}" \
+            --generate-notes
+
+      - name: Update Packagist
+        if: steps.ver.outputs.skip != 'true'
+        env:
+          PACKAGIST_USERNAME_VAR: ${{ vars.PACKAGIST_USERNAME }}
+          PACKAGIST_USERNAME_SECRET: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_KEY }}
+        run: |
+          set -euo pipefail
+          USER_NAME="${PACKAGIST_USERNAME_VAR:-${PACKAGIST_USERNAME_SECRET:-ParkkTech}}"
+          if [ -z "${PACKAGIST_TOKEN:-}" ]; then
+            echo "::error::Secret PACKAGIST_KEY is not set in the PACKAGIST-PROD environment."; exit 1
+          fi
+          echo "Notifying Packagist as '${USER_NAME}' ..."
+          http_code=$(curl -s -o /tmp/resp.json -w '%{http_code}' -XPOST \
+            -H 'Content-Type: application/json' \
+            "https://packagist.org/api/update-package?username=${USER_NAME}&apiToken=${PACKAGIST_TOKEN}" \
+            -d '{"repository":{"url":"https://github.com/parkktech/FastMagentoPersonalization"}}')
+          echo "HTTP ${http_code}"; cat /tmp/resp.json 2>/dev/null || true; echo
+          case "$http_code" in
+            200|202) echo "Packagist update triggered for ${{ steps.ver.outputs.tag }}." ;;
+            *) echo "::error::Packagist update failed (HTTP ${http_code})."; exit 1 ;;
+          esac
