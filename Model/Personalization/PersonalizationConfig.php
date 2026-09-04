@@ -34,6 +34,9 @@ class PersonalizationConfig
     public const SURFACE_SEARCH = 'search';
     public const SURFACE_RECOMMENDATIONS = 'recommendations';
 
+    public const PLP_ORDER_POSITION = 'position';
+    public const PLP_ORDER_PERSONALISED = 'personalised';
+
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig
     ) {
@@ -289,5 +292,40 @@ class PersonalizationConfig
         $value = $this->scopeConfig->getValue(self::PATH . $key, ScopeInterface::SCOPE_STORE, $storeId);
 
         return $value === null ? null : (string) $value;
+    }
+
+    /**
+     * How a category listing is ordered for a shopper with an actionable profile:
+     * merchant position (personalisation breaks ties only) or position-aware personalised.
+     */
+    public function getPlpOrderMode(?int $storeId = null): string
+    {
+        $mode = (string) $this->scopeConfig->getValue(
+            'fastmagento/personalization/plp_order_mode',
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+        return $mode === self::PLP_ORDER_POSITION ? self::PLP_ORDER_POSITION : self::PLP_ORDER_PERSONALISED;
+    }
+
+    /** Positions a maximal boost can move a product on a listing (the width of the merchant prior). */
+    public function getPlpBand(?int $storeId = null): int
+    {
+        $band = (int) $this->scopeConfig->getValue('fastmagento/personalization/plp_band', ScopeInterface::SCOPE_STORE, $storeId);
+        return $band > 0 ? min(200, $band) : 12;
+    }
+
+    /** How hard the listing re-rank leans on the profile: multiplier applied to the boost lift. */
+    public function getPlpStrength(?int $storeId = null): float
+    {
+        $strength = (float) $this->scopeConfig->getValue('fastmagento/personalization/plp_strength', ScopeInterface::SCOPE_STORE, $storeId);
+        return $strength > 0.0 ? min(20.0, $strength) : 6.0;
+    }
+
+    /** Extra weight on affinities measured within the category being listed (percent, 100 = none). */
+    public function getCategoryAffinityBonus(?int $storeId = null): float
+    {
+        $bonus = (float) $this->scopeConfig->getValue('fastmagento/personalization/category_affinity_bonus', ScopeInterface::SCOPE_STORE, $storeId);
+        return $bonus > 0.0 ? min(5.0, $bonus / 100.0) : 1.5;
     }
 }

@@ -12,6 +12,17 @@
                 <build_profiles>1</build_profiles>
                 <enabled>0</enabled>
                 <impact_plp>25</impact_plp>
+                <!-- Category listings for a shopper with an actionable profile: position-aware
+                     personalised order (merchant position as a decaying prior, the shopper's
+                     boosts as lift), or plain merchant position with personalisation as a
+                     tie-breaker. -->
+                <plp_order_mode>personalised</plp_order_mode>
+                <!-- Positions a maximal boost can move a product up a listing. -->
+                <plp_band>12</plp_band>
+                <!-- Multiplier on the boost lift in the listing re-rank. -->
+                <plp_strength>6</plp_strength>
+                <!-- Extra weight (percent) on preferences measured within the listed category. -->
+                <category_affinity_bonus>150</category_affinity_bonus>
                 <impact_search>25</impact_search>
                 <impact_recommendations>50</impact_recommendations>
                 <min_strength>35</min_strength>

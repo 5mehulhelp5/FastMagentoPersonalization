@@ -41,6 +41,7 @@ class PersonalizationExplain extends Command
             ->setDescription('Show the scoring clauses personalisation would add for one shopper, and why')
             ->addOption('customer', null, InputOption::VALUE_REQUIRED, 'Customer entity id')
             ->addOption('surface', null, InputOption::VALUE_REQUIRED, 'search | plp | recommendations (default: all)')
+            ->addOption('category', null, InputOption::VALUE_REQUIRED, 'Category id: explain the PLP arm for that listing (uses the shopper\'s category-scoped affinities when the profile has them)')
             ->addOption('store', null, InputOption::VALUE_REQUIRED, 'Store id', '1');
 
         parent::configure();
@@ -87,7 +88,19 @@ class PersonalizationExplain extends Command
             }
 
             $impact = $this->config->getImpact($surface, $storeId);
-            $terms = $this->personalizer->explainTerms($surface, $target, $storeId, $customerId);
+            $categoryId = $surface === PersonalizationConfig::SURFACE_PLP ? (int) $input->getOption('category') : 0;
+            $terms = $this->personalizer->explainTerms($surface, $target, $storeId, $customerId, $categoryId > 0 ? $categoryId : null);
+            if ($categoryId > 0) {
+                $output->writeln($this->personalizer->usesCategoryAffinities($categoryId, $customerId)
+                    ? sprintf('  category %d: using what this shopper buys IN this category (×%.2f)', $categoryId, $this->config->getCategoryAffinityBonus($storeId))
+                    : sprintf('  category %d: no category-scoped preferences — global profile applies', $categoryId));
+                $output->writeln(sprintf(
+                    '  listing order: %s (band %d positions, strength ×%.1f)',
+                    $this->config->getPlpOrderMode($storeId),
+                    $this->config->getPlpBand($storeId),
+                    $this->config->getPlpStrength($storeId)
+                ));
+            }
 
             $output->writeln('');
             $output->writeln(sprintf(

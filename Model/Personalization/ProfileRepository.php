@@ -192,10 +192,34 @@ class ProfileRepository
         $client = $this->client();
 
         if ($client->indexExists($indexName)) {
+            $this->addMissingProperties($indexName);
             return;
         }
 
         $client->createIndex($indexName, $this->buildMapping());
+    }
+
+    /**
+     * Add properties the current mapping declares but the live index predates (an upgrade that
+     * introduced a field). Adding a property is a mapping PUT, not a reindex; nothing existing
+     * changes and existing documents simply lack the field until they are rebuilt.
+     */
+    private function addMissingProperties(string $indexName): void
+    {
+        try {
+            $live = $this->getLiveMapping();
+            $expected = $this->buildMapping()['mappings']['properties'];
+            $missing = array_diff_key($expected, (array) ($live['properties'] ?? []));
+            if (!$missing) {
+                return;
+            }
+            $this->client()->getOpenSearchClient()->indices()->putMapping([
+                'index' => $indexName,
+                'body' => ['properties' => $missing],
+            ]);
+        } catch (\Throwable $e) {
+            $this->writeLog->writeErrorLog('Profile mapping update skipped: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -263,6 +287,7 @@ class ProfileRepository
                     // never query BY a profile, we only fetch one, so indexing it would cost
                     // mapping churn (every new attribute code adds a field) for no benefit.
                     'affinities' => ['type' => 'object', 'enabled' => false],
+                    'category_affinities' => ['type' => 'object', 'enabled' => false],
                     'facts' => ['type' => 'object', 'enabled' => false],
                     'negative' => ['type' => 'object', 'enabled' => false],
                     'traits' => ['type' => 'object', 'enabled' => false],

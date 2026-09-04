@@ -133,6 +133,7 @@ the command that fixes it.
 | **Exposure table** | never measured, or measured before the impression window moved |
 | **Guest tier** | anonymous profiles absent while guests have been active enough to profile |
 | **Exploration slot** | dialled above zero with no measured exposure — the slot is empty |
+| **Listing order** | which listing mode is live and its band, strength and category bonus |
 | **A/B test / Weight** | running or not, arms seen in the window, the effective weight and why *Auto* is holding still |
 | **Serving / cache / link-block / GraphQL / exploration wiring** | each plugin and observer declaration resolved *in its own area* — the request-side query plugin, the page-cache fork observer, both block-cache-key plugins, the link-row re-order seam, the GraphQL context plugin, the exploration request and response plugins. Each was shown to FAIL when its declaration was disabled |
 
@@ -274,11 +275,46 @@ Three surfaces, three impact dials, one personaliser.
 
 | Surface | Seam | Default impact | Behaviour |
 |---|---|---|---|
-| **Category listings** | plugin on `Magento\OpenSearch\SearchAdapter\Mapper::buildQuery()` — the last point where the whole request is still one array and ranking has not happened | 25 (`impact_plp`) | Lowest by default: a category page has a merchant-chosen order and personalisation should nudge it, not overrule it. Re-ordering at the collection would only reshuffle the twelve products already chosen for the page; this re-ranks the whole result set, so a product owed page one gets page one. |
+| **Category listings** | plugin on `Magento\OpenSearch\SearchAdapter\Mapper::buildQuery()` — the last point where the whole request is still one array and ranking has not happened — plus a response-side re-rank | 25 (`impact_plp`), then the listing dials | **Position-aware personalised order** (default since 0.2.0): the merchant's position order becomes a decaying prior and the shopper's boosts a lift; what the shopper buys *in this category* outranks what they buy overall. See [the listing section](#feature-position-aware-category-listings). Re-ordering at the collection would only reshuffle the twelve products already chosen for the page; this re-ranks the window, so a product owed page one gets page one. |
 | **Search results and instant search** | the same Mapper plugin for the results page; core's `QueryDecoratorInterface` seam for instant search | 25 (`impact_search`) | Applied *after* textual relevance, so a shopper searching for something specific still gets it. |
 | **Related / up-sell / cross-sell** | core's `LinkProductCollectionPlugin::orderForDisplay()` seam | 50 (`impact_recommendations`) | Highest by default: a recommendation row exists to be relevant to this shopper — and the merchant's link set is still the only pool it can draw from. **Re-order only, never add, never drop.** Ties keep the merchant's order. Costs no query; the documents are already in hand. |
 
 `0` on any dial disables that surface. Shopper-chosen sorts (price, name) are respected.
+
+## Feature: position-aware category listings
+
+The category page is where returning shoppers browse, and it is the one surface where a boost
+alone can do nothing: Magento sorts a listing by the merchant's position, and with `_score` as a
+tie-breaker a curated category never moves. Since 0.2.0 the listing arm has two modes
+(*Category Listing Order For Profiled Shoppers*):
+
+- **Position-aware personalised** (default). The request keeps the position sort and asks
+  OpenSearch for `_score` alongside it, over a window of the page plus a *band*; the response is
+  re-ranked as `prior(rank) × lift`, where `prior(rank) = exp(−rank / band)` is the merchant's
+  order as a decaying prior and `lift = 1 + strength × (boost − 1)` is the shopper's gated boosts.
+  A product the shopper is owed climbs at most a band's worth of positions (12 by default, about
+  a page); products the shopper has no preference about keep their merchant order relative to
+  each other; deep pages beyond the band stay in merchant order. Deterministic, so the page
+  caches like any other personalised page and the exploration slot still takes the tail of page
+  one. Measured on the demo store: the four Black-capable tops moved to the head of the Tops
+  listing for a shopper who buys black, the other eight kept their order, and the guest listing
+  did not change by a byte.
+- **Merchant position.** The listing stays in the merchant's order; personalisation decides only
+  among products with the same position — the pre-0.2.0 behaviour.
+
+**What the shopper buys in *this* category comes first.** Profiles carry, per category the
+shopper has bought from (ancestors included: a hoodie bought in *Women › Tops › Hoodies* is
+evidence on *Tops* too, read through the configurable parent because variants are not assigned
+to categories), the affinities measured on those purchases alone — same calculator, same gates,
+so one purchase in a category still cannot invent a preference. When a listing has such a set it
+replaces the global one and is weighted by the *Category-Specific Preference Bonus* (150 % by
+default); otherwise the global profile applies. A shopper who buys black tops and red shoes has
+no global colour preference, but on Tops "black" is exactly right. The page-cache signature is
+computed per category so shoppers with different category-scoped boosts never share an entry.
+
+Shopper-chosen sorts (price, name) are never touched. Guests and shoppers without an actionable
+preference see the merchant order in both modes. `fastmagento:personalization:explain
+--customer=<id> --surface=plp --category=<id>` prints which set applies and the listing dials.
 
 ## Feature: stated requirements ("facts")
 
@@ -464,7 +500,7 @@ The one theme-shaped requirement is that the storefront bundle stays deployed on
 
 | Surface | Reads | Changes | Never |
 |---|---|---|---|
-| Category listing | profile, discrimination table, exposure table | scoring clauses on the search request; last K slots of page one | filters a product out; the merchant's head of page one |
+| Category listing | profile (category-scoped set first), discrimination table, exposure table | scoring clauses on the request; position-aware re-rank of the page window (band-bounded); last K slots of page one | filters a product out; a shopper-chosen sort; deep pages beyond the band |
 | Search results / instant search | same | same, after textual relevance | hides a match |
 | Related / up-sell / cross-sell | profile | the **order** of the merchant's linked ids | adds or drops a product; the exploration slot is never applied here |
 | Configurable product page | profile, the product's own document | which variant opens first | restricts a variant; overrides an explicit selection |
@@ -559,7 +595,11 @@ setting, cron row and flag this module created (see [Installation, upgrade and u
 | A/B Test | `ab_enabled` | Off | 50/50 sticky split with a true control arm; the dashboard compares what each half buys. |
 | Build Shopper Profiles | `build_profiles` | On | Aggregate purchase, review, return and category history into profiles, off the request path. |
 | Record Searches And Facet Selections | `collect_events` | On | Independent of the other switches. On a cached store the browser reports facet clicks. |
-| Impact — Category Listings (0–100) | `impact_plp` | 25 | Nudge, don't overrule, a merchant-ordered category. 0 disables the surface. |
+| Impact — Category Listings (0–100) | `impact_plp` | 25 | The boost size on listings; the listing dials below decide how far it can move a product. 0 disables the surface. |
+| Category Listing Order For Profiled Shoppers | `plp_order_mode` | personalised | *Position-aware personalised* (merchant order as a prior, boosts as lift) or *Merchant position* (ties only). |
+| Band | `plp_band` | 12 | Positions a maximal boost can move a product up a listing. |
+| Strength | `plp_strength` | 6 | Multiplier on the boost lift in the listing re-rank. |
+| Category-Specific Preference Bonus (%) | `category_affinity_bonus` | 150 | Weight on affinities measured within the listed category, when the profile has them. |
 | Impact — Search Results (0–100) | `impact_search` | 25 | Applied after textual relevance. |
 | Impact — Related, Up-sell & Cross-sell (0–100) | `impact_recommendations` | 50 | Highest: a recommendation row exists to be relevant; the merchant's set is the only pool. |
 | Preselect The Variant A Shopper Prefers | `preselect_variant` | On | Open a configurable on the shopper's usual in-stock variant; never restricts; explicit selections win. |
@@ -582,7 +622,7 @@ setting, cron row and flag this module created (see [Installation, upgrade and u
 |---|---|---|
 | `fastmagento:profile:backfill` | `--skip-anonymous`, `--anonymous-limit=` | Build profiles for every customer with order history (resumable via a stored cursor), then recent anonymous shoppers. |
 | `fastmagento:profile:inspect` | `--customer=<id>`, `--products`, `--attributes=`, `--half-life=`, `--save`, `--forget-facts` | Show a shopper's affinities, facts, negatives and traits; optionally persist a rebuilt profile or clear inferred facts. Read-only unless told otherwise. |
-| `fastmagento:personalization:explain` | `--customer=<id>`, `--surface=`, `--store=` | Show the exact scoring clauses personalisation would add for one shopper on one surface, and which gate stopped each value that was not emitted. The first thing to run when "it doesn't seem to do anything". |
+| `fastmagento:personalization:explain` | `--customer=<id>`, `--surface=`, `--store=`, `--category=<id>` | Show the exact scoring clauses personalisation would add for one shopper on one surface, and which gate stopped each value that was not emitted. The first thing to run when "it doesn't seem to do anything". |
 | `fastmagento:personalization:discrimination` | `--attributes=`, `--store=`, `--target=`, `--show` | Measure per-value catalogue discrimination (IDF) on the index being ranked; `--show` prints the table. |
 | `fastmagento:personalization:exposure` | `--store=`, `--limit=`, `--show` | Measure conversion per impression (Wilson lower bound) over the impression window; `--show` prints the most- and least-shown products. |
 | `fastmagento:personalization:tune` | `--window=` | Run one auto-weight step against the pooled A/B evidence and print the decision and its reason. |

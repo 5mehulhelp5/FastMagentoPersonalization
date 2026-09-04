@@ -71,9 +71,10 @@ class QueryPersonalizer
         string $surface,
         string $target,
         ?int $storeId = null,
-        ?int $customerId = null
+        ?int $customerId = null,
+        ?int $categoryId = null
     ): array {
-        $functions = $this->buildFunctions($surface, $target, $storeId, $customerId);
+        $functions = $this->buildFunctions($surface, $target, $storeId, $customerId, $categoryId);
         if (!$functions) {
             return $query;
         }
@@ -114,9 +115,10 @@ class QueryPersonalizer
         string $surface,
         string $target,
         ?int $storeId = null,
-        ?int $customerId = null
+        ?int $customerId = null,
+        ?int $categoryId = null
     ): bool {
-        return $this->buildFunctions($surface, $target, $storeId, $customerId) !== [];
+        return $this->buildFunctions($surface, $target, $storeId, $customerId, $categoryId) !== [];
     }
 
     /**
@@ -128,9 +130,10 @@ class QueryPersonalizer
         string $surface,
         string $target,
         ?int $storeId = null,
-        ?int $customerId = null
+        ?int $customerId = null,
+        ?int $categoryId = null
     ): array {
-        return $this->buildFunctions($surface, $target, $storeId, $customerId);
+        return $this->buildFunctions($surface, $target, $storeId, $customerId, $categoryId);
     }
 
     /**
@@ -145,9 +148,10 @@ class QueryPersonalizer
         string $surface,
         string $target,
         ?int $storeId = null,
-        ?int $customerId = null
+        ?int $customerId = null,
+        ?int $categoryId = null
     ): array {
-        return $this->boostTerms($surface, $target, $storeId, $customerId);
+        return $this->boostTerms($surface, $target, $storeId, $customerId, $categoryId);
     }
 
     /**
@@ -157,10 +161,11 @@ class QueryPersonalizer
         string $surface,
         string $target,
         ?int $storeId,
-        ?int $customerId = null
+        ?int $customerId = null,
+        ?int $categoryId = null
     ): array {
         $functions = [];
-        foreach ($this->boostTerms($surface, $target, $storeId, $customerId) as $boost) {
+        foreach ($this->boostTerms($surface, $target, $storeId, $customerId, $categoryId) as $boost) {
             $functions[] = [
                 'filter' => ['term' => [$boost['field'] => $boost['term']]],
                 'weight' => round($boost['weight'], 4),
@@ -185,7 +190,8 @@ class QueryPersonalizer
         string $surface,
         string $target,
         ?int $storeId,
-        ?int $customerId = null
+        ?int $customerId = null,
+        ?int $categoryId = null
     ): array {
         $impact = $this->config->getImpact($surface, $storeId);
         if ($impact <= 0.0) {
@@ -214,7 +220,14 @@ class QueryPersonalizer
         $facts = $this->factBoosts($profile, $target, $storeId, $impact);
         $spokenFor = array_column($facts, 'code');
 
-        $affinities = $profile['affinities'] ?? [];
+        // On a category listing, what the shopper buys IN THIS CATEGORY outranks what they buy
+        // overall: a shopper who buys black tops and red shoes has no global colour preference,
+        // but on the Tops listing "black" is exactly right. Category-scoped affinities (ancestors
+        // included at build time) are used when the profile has them for this category, with the
+        // configured bonus; otherwise the global set, unchanged.
+        $scoped = $this->categoryAffinitiesFor($profile, $surface, $categoryId);
+        $affinities = $scoped ?? ($profile['affinities'] ?? []);
+        $scopeBonus = $scoped === null ? 1.0 : $this->config->getCategoryAffinityBonus($storeId);
         if (!is_array($affinities) || !$affinities) {
             return $facts;
         }
@@ -288,6 +301,7 @@ class QueryPersonalizer
                     * $confidence
                     * min(1.0, $idf / self::IDF_SATURATION)
                     * $impact
+                    * $scopeBonus
                     * self::MAX_UPLIFT;
 
                 if ($uplift <= 0.0) {
@@ -551,6 +565,36 @@ class QueryPersonalizer
     /**
      * Which field carries this attribute in the index being ranked, or null when it carries none.
      */
+    /**
+     * The category-scoped affinity set for a listing, or NULL when the global set applies
+     * (not a listing, no category, or the profile has nothing actionable for this category).
+     *
+     * @param array<string, mixed> $profile
+     * @return array<string, array<string, mixed>>|null
+     */
+    private function categoryAffinitiesFor(array $profile, string $surface, ?int $categoryId): ?array
+    {
+        if ($surface !== PersonalizationConfig::SURFACE_PLP || $categoryId === null || $categoryId <= 0) {
+            return null;
+        }
+        $scoped = $profile['category_affinities'][(string) $categoryId] ?? null;
+        if (!is_array($scoped) || !$scoped) {
+            return null;
+        }
+        return $scoped;
+    }
+
+    /**
+     * Whether a listing of $categoryId would use category-scoped affinities for the current
+     * shopper — what the explain command and the doctor report.
+     */
+    public function usesCategoryAffinities(int $categoryId, ?int $customerId = null): bool
+    {
+        $profile = $this->loadProfile($customerId);
+        return $profile !== null
+            && $this->categoryAffinitiesFor($profile, PersonalizationConfig::SURFACE_PLP, $categoryId) !== null;
+    }
+
     private function fieldFor(string $attributeCode, string $target): ?string
     {
         if ($target === ValueDiscrimination::TARGET_NATIVE) {

@@ -70,6 +70,14 @@ class PersonalizationCacheContext implements ObserverInterface
             // crawler makes.
             $this->requestScope->setAnonId($this->anonymousId->get(false));
 
+            // The category being listed, so the PLP arm can prefer what the shopper buys in it and
+            // the signature below forks the page cache per category-scoped boost set.
+            $request = $observer->getEvent()->getRequest();
+            if ($request !== null && method_exists($request, 'getFullActionName')
+                && $request->getFullActionName() === 'catalog_category_view') {
+                $this->requestScope->setCategoryId((int) $request->getParam('id'));
+            }
+
             if (!$this->config->isApplied($storeId)) {
                 // Off. Set nothing at all — an untouched context is what every page produced
                 // before this class existed, which is what "byte-identical when off" requires of
@@ -98,7 +106,8 @@ class PersonalizationCacheContext implements ObserverInterface
         $terms = [];
 
         foreach ([PersonalizationConfig::SURFACE_PLP, PersonalizationConfig::SURFACE_SEARCH] as $surface) {
-            foreach ($this->personalizer->explain($surface, ValueDiscrimination::TARGET_NATIVE, $storeId) as $fn) {
+            $categoryId = $surface === PersonalizationConfig::SURFACE_PLP ? $this->requestScope->getCategoryId() : null;
+            foreach ($this->personalizer->explain($surface, ValueDiscrimination::TARGET_NATIVE, $storeId, null, $categoryId) as $fn) {
                 $term = $fn['filter']['term'] ?? [];
                 $field = (string) array_key_first($term);
                 if ($field === '') {

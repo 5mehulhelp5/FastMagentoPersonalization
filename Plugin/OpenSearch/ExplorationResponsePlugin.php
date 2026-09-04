@@ -48,7 +48,8 @@ class ExplorationResponsePlugin
     public function beforeCreate(ResponseFactory $subject, $response): array
     {
         try {
-            $window = $this->requestScope->takeExplorationWindow();
+            $rerank = $this->requestScope->takeRerankWindow();
+            $window = $this->requestScope->takeExplorationWindow() ?? $rerank;
             if ($window === null || !is_array($response)) {
                 return [$response];
             }
@@ -82,7 +83,12 @@ class ExplorationResponsePlugin
                 return [$response];
             }
 
-            $permuted = $this->exploration->permute($rankedIds, $window['size']);
+            if ($rerank !== null) {
+                $rankedIds = $this->rerankByPrior($rankedIds, $byId, (int) $rerank['band'], (float) $rerank['strength']);
+            }
+            $permuted = $this->exploration->isActive()
+                ? $this->exploration->permute($rankedIds, $window['size'])
+                : $rankedIds;
 
             $page = array_slice($permuted, $window['from'], $window['size']);
 
@@ -103,5 +109,47 @@ class ExplorationResponsePlugin
             // A broken slice must never cost the shopper their search results.
             return [$response];
         }
+    }
+
+    /**
+     * Position-aware personalised order: final = prior(rank) × lift.
+     *
+     * prior(rank) = exp(-rank / band): the merchant's order as a decaying prior, so a product
+     * `band` positions down needs a lift of e to draw level with position one — and a product
+     * with no personal lift keeps exactly its merchant rank relative to its neighbours.
+     * lift = 1 + strength × (score / floor − 1): the shopper's boosts, read from the `_score`
+     * OpenSearch computed alongside the position sort (track_scores) — the function_score
+     * multiplier over the window's floor score, so an un-boosted product has lift 1 whatever the
+     * base score happened to be. Stable: equal finals keep merchant order.
+     *
+     * @param int[] $rankedIds merchant order (position sort)
+     * @param array<int, array<string, mixed>> $byId
+     * @return int[]
+     */
+    private function rerankByPrior(array $rankedIds, array $byId, int $band, float $strength): array
+    {
+        if ($band <= 0 || $strength <= 0.0 || count($rankedIds) < 2) {
+            return $rankedIds;
+        }
+        $scores = [];
+        foreach ($rankedIds as $id) {
+            $scores[$id] = (float) ($byId[$id]['_score'] ?? 0.0);
+        }
+        $floor = min($scores);
+        if ($floor <= 0.0) {
+            return $rankedIds;   // no scores came back — nothing to rank on, merchant order stands
+        }
+        $final = [];
+        $rankOf = array_flip($rankedIds);
+        foreach ($rankedIds as $rank => $id) {
+            $lift = 1.0 + $strength * (($scores[$id] / $floor) - 1.0);
+            $final[$id] = exp(-$rank / $band) * $lift;
+        }
+        $order = $rankedIds;
+        usort($order, static function (int $a, int $b) use ($final, $rankOf): int {
+            $cmp = $final[$b] <=> $final[$a];
+            return $cmp !== 0 ? $cmp : ($rankOf[$a] <=> $rankOf[$b]);
+        });
+        return $order;
     }
 }

@@ -17,6 +17,9 @@ namespace ParkkTech\FastMagentoPersonalization\Model\Personalization;
  */
 class ProfileBuilder
 {
+    /** Categories kept per profile, most-bought first. */
+    private const MAX_CATEGORY_AFFINITIES = 40;
+
     public function __construct(
         private readonly PurchaseHistoryProvider $history,
         private readonly AffinityCalculator $calculator,
@@ -139,6 +142,9 @@ class ProfileBuilder
             // several times harder — and because a cold-start fact is a PROPOSAL the shopper is
             // entitled to correct, not a conclusion. It still only ever boosts.
             'facts' => $this->resolveFacts($this->events->factsForShopper($customerId, null), $storeId),
+            // What this shopper buys WITHIN each category they have bought from — the evidence a
+            // category listing should weigh first (see categoryAffinities()).
+            'category_affinities' => $this->categoryAffinities($purchases, $attributeCodes, $storeId),
             'traits' => $this->history->getTraits($customerId),
             'price_band' => $this->history->getPriceBand($customerId),
             // A one-star review is the only negative signal we have today. Keeping it separate
@@ -283,6 +289,78 @@ class ProfileBuilder
      * @param array<string, array<string, mixed>> $facts
      * @return array<string, array<string, mixed>>
      */
+    /**
+     * Affinities computed from the purchases made in each category (ancestors included), keyed
+     * by category id, actionable attributes only.
+     *
+     * Why a separate set rather than the global one: a shopper who buys black tops and red shoes
+     * has no global colour preference worth acting on, but on the Tops listing "black" is exactly
+     * right. The category listing is where returning shoppers browse, and this is the evidence
+     * that belongs on it. Computed with the same calculator and the same gates as the global set,
+     * over the subset of purchases that count towards the category, so a single purchase in a
+     * category still cannot invent a preference — confidence is measured on the subset.
+     *
+     * Bounded: categories are ranked by the purchase weight they carry and capped, and only
+     * actionable attributes are stored, so a profile stays a small document on a store with
+     * thousands of categories.
+     *
+     * @param array<int, array{values: array, weight: float, category_ids?: int[]}> $purchases
+     * @param string[] $attributeCodes
+     * @return array<string, array<string, array<string, mixed>>> category id => attribute code => affinity
+     */
+    private function categoryAffinities(array $purchases, array $attributeCodes, ?int $storeId): array
+    {
+        $byCategory = [];
+        $weightByCategory = [];
+        foreach ($purchases as $purchase) {
+            $values = $purchase['values'] ?? [];
+            unset($values['category']);
+            if (!$values) {
+                continue;
+            }
+            foreach ((array) ($purchase['category_ids'] ?? []) as $categoryId) {
+                $categoryId = (int) $categoryId;
+                if ($categoryId <= 0) {
+                    continue;
+                }
+                $byCategory[$categoryId][] = ['values' => $values, 'weight' => (float) ($purchase['weight'] ?? 1.0)];
+                $weightByCategory[$categoryId] = ($weightByCategory[$categoryId] ?? 0.0) + (float) ($purchase['weight'] ?? 1.0);
+            }
+        }
+        if (!$byCategory) {
+            return [];
+        }
+        arsort($weightByCategory);
+        $minStrength = $this->config->getMinStrength($storeId);
+        $minConfidence = $this->config->getMinConfidence($storeId);
+        $cardinality = $this->history->getCatalogueCardinality($attributeCodes);
+        $valueIds = $this->history->resolveValueIds($attributeCodes);
+        $out = [];
+        foreach (array_slice(array_keys($weightByCategory), 0, self::MAX_CATEGORY_AFFINITIES, true) as $categoryId) {
+            $affinities = $this->calculator->calculate($byCategory[$categoryId], $cardinality);
+            $stored = [];
+            foreach ($affinities as $code => $affinity) {
+                if (!$affinity->isActionable($minStrength, $minConfidence)) {
+                    continue;
+                }
+                $data = $affinity->toArray();
+                $data['actionable'] = true;
+                $ids = [];
+                foreach (array_keys($data['values']) as $label) {
+                    if (isset($valueIds[$code][$label])) {
+                        $ids[$label] = $valueIds[$code][$label];
+                    }
+                }
+                $data['value_ids'] = $ids;
+                $stored[$code] = $data;
+            }
+            if ($stored) {
+                $out[(string) $categoryId] = $stored;
+            }
+        }
+        return $out;
+    }
+
     private function resolveFacts(array $facts, ?int $storeId): array
     {
         if (!$facts) {

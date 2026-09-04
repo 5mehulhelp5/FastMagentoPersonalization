@@ -49,12 +49,18 @@ class PersonalizeSearchRequest
         'graphql_product_search_with_aggregation' => PersonalizationConfig::SURFACE_SEARCH,
     ];
 
+    /** Hard ceiling on the widened window a listing re-rank may ask OpenSearch for. */
+    private const MAX_RERANK_WINDOW = 200;
+
     public function __construct(
         private readonly QueryPersonalizer $personalizer,
         private readonly StoreManagerInterface $storeManager,
         private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ExplorationSlot $exploration,
-        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\RequestScope $requestScope
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\RequestScope $requestScope,
+        // Optional-with-fallback so a compiled DI from before this argument existed still constructs.
+        private ?PersonalizationConfig $config = null
     ) {
+        $this->config = $config ?? \Magento\Framework\App\ObjectManager::getInstance()->get(PersonalizationConfig::class);
     }
 
     /**
@@ -76,13 +82,19 @@ class PersonalizeSearchRequest
                 return $result;
             }
 
+            $storeId = (int) $this->storeManager->getStore()->getId();
+            // The category being listed (captured at pre-dispatch) lets the PLP arm prefer what
+            // the shopper buys in this category over what they buy overall.
+            $categoryId = $surface === PersonalizationConfig::SURFACE_PLP ? $this->requestScope->getCategoryId() : null;
             $decorated = $this->personalizer->decorate(
                 $query,
                 $surface,
                 // Always the native target: this mapper only ever builds queries against Magento's
                 // own catalogue index, where the profiled attributes are EAV option ids.
                 ValueDiscrimination::TARGET_NATIVE,
-                (int) $this->storeManager->getStore()->getId()
+                $storeId,
+                null,
+                $categoryId
             );
 
             // Identity when nothing applied — the decorator hands back the same array, so an
@@ -96,7 +108,7 @@ class PersonalizeSearchRequest
 
             $result['body']['query'] = $decorated;
             $result['body']['sort'] = $this->withScoreTiebreaker($result['body']['sort'] ?? []);
-
+            $result = $this->expandForRerank($result, $surface, $storeId);
             return $this->expandForExploration($result);
         } catch (\Throwable $e) {
             // A category page must never fail to render because personalisation had an opinion.
@@ -121,10 +133,59 @@ class PersonalizeSearchRequest
      * @param array<string, mixed> $result
      * @return array<string, mixed>
      */
-    private function expandForExploration(array $result): array
+    /**
+     * Position-aware personalised listing order (the PLP arm's second mode).
+     *
+     * A category listing sorts by the merchant's position; with `_score` only as a tie-breaker a
+     * boost cannot move anything on a curated category. In personalised mode the merchant order
+     * becomes a PRIOR instead of the key: the request keeps the position sort (so OpenSearch hands
+     * back the merchant's window in merchant order) and asks for `_score` alongside it, and
+     * ExplorationResponsePlugin re-ranks that window in PHP by prior(rank) × lift — prior decaying
+     * over `band` positions, lift from the shopper's boosts. The merchant's order survives wherever
+     * the shopper has no preference, and a product the shopper is owed moves up at most a band's
+     * worth of positions. Deterministic, so the page caches like any other personalised page.
+     *
+     * Only when: the surface is a listing, the mode is personalised, the primary sort is the
+     * merchant position (a shopper-chosen sort is theirs), and the personaliser emitted boosts
+     * (this runs only on that branch).
+     */
+    private function expandForRerank(array $result, string $surface, int $storeId): array
     {
+        if ($surface !== PersonalizationConfig::SURFACE_PLP || $this->config === null) {
+            return $result;
+        }
+        if ($this->config->getPlpOrderMode($storeId) !== PersonalizationConfig::PLP_ORDER_PERSONALISED) {
+            return $result;
+        }
+        $primary = $this->primarySortField($result['body']['sort'] ?? []);
+        if ($primary === null || !str_starts_with($primary, 'position')) {
+            return $result;
+        }
         $from = (int) ($result['body']['from'] ?? 0);
         $size = (int) ($result['body']['size'] ?? 0);
+        if ($size <= 0) {
+            return $result;
+        }
+        $band = $this->config->getPlpBand($storeId);
+        $window = min(self::MAX_RERANK_WINDOW, $from + $size + $band);
+        if ($from >= $window) {
+            return $result;   // deep pages are beyond the band; leave them in merchant order
+        }
+        $this->requestScope->setRerankWindow($from, $size, $band, $this->config->getPlpStrength($storeId));
+        $result['body']['from'] = 0;
+        $result['body']['size'] = $window;
+        $result['body']['track_scores'] = true;
+
+        return $result;
+    }
+
+    private function expandForExploration(array $result): array
+    {
+        // When a listing re-rank already widened the body, the shopper's real page lives in the
+        // rerank window; exploration sizes itself from that page, not from the widened body.
+        $rerank = $this->requestScope->peekRerankWindow();
+        $from = $rerank !== null ? (int) $rerank['from'] : (int) ($result['body']['from'] ?? 0);
+        $size = $rerank !== null ? (int) $rerank['size'] : (int) ($result['body']['size'] ?? 0);
         if ($size <= 0 || !$this->exploration->isActive()) {
             return $result;
         }
@@ -141,7 +202,7 @@ class PersonalizeSearchRequest
 
         $this->requestScope->setExplorationWindow($from, $size);
         $result['body']['from'] = 0;
-        $result['body']['size'] = max($from + $size, $window);
+        $result['body']['size'] = max((int) ($result['body']['size'] ?? 0), $from + $size, $window);
 
         return $result;
     }

@@ -598,6 +598,21 @@ class PersonalizationCheckProvider implements CheckProviderInterface
                 'Weight',
                 sprintf('%s (%.2f×)%s', ucfirst($mode), $factor, $mode === 'auto' ? ' — tuner-owned, see the dashboard' : '')
             );
+
+            $storeIdForPlp = null;
+            $mode = $this->personalizationConfig->getPlpOrderMode($storeIdForPlp);
+            $out[] = $mode === \ParkkTech\FastMagentoPersonalization\Model\Personalization\PersonalizationConfig::PLP_ORDER_PERSONALISED
+                ? Check::ok(
+                    self::G_PERSONALIZATION,
+                    'Listing order',
+                    sprintf(
+                        'position-aware personalised — band %d positions, strength ×%.1f, category-scoped affinities ×%.2f',
+                        $this->personalizationConfig->getPlpBand($storeIdForPlp),
+                        $this->personalizationConfig->getPlpStrength($storeIdForPlp),
+                        $this->personalizationConfig->getCategoryAffinityBonus($storeIdForPlp)
+                    )
+                )
+                : Check::ok(self::G_PERSONALIZATION, 'Listing order', 'merchant position — personalisation breaks ties only');
         }
 
         // --- dark-ship reminder --------------------------------------------------------------

@@ -52,6 +52,30 @@
                         <validate>validate-digits validate-digits-range digits-range-0-100</validate>
                         <comment>How hard personalisation pushes on a PLP. Lower than the others by default: a category page has a merchant-chosen order and personalisation should nudge it, not overrule it. 0 disables it for this surface.</comment>
                         <depends><field id="enabled">1</field></depends>
+                </field>
+                <field id="plp_order_mode" translate="label comment" type="select" sortOrder="61" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Category Listing Order For Profiled Shoppers</label>
+                    <source_model>ParkkTech\FastMagentoPersonalization\Model\Config\Source\PlpOrderMode</source_model>
+                    <comment><![CDATA[<strong>Position-aware personalised</strong> (default): the merchant's position order becomes a prior rather than the key. A product this shopper is owed &mdash; by what they buy <em>in this category</em> first, by their overall preferences otherwise &mdash; moves up to <em>Band</em> positions; everything they have no preference about keeps its merchant order relative to its neighbours. <strong>Merchant position</strong>: the listing stays in the merchant's order and personalisation only decides among products with the same position. Shopper-chosen sorts (price, name) are never touched. Guests and shoppers without an actionable preference see the merchant order in both modes.]]></comment>
+                    <depends><field id="enabled">1</field></depends>
+                </field>
+                <field id="plp_band" translate="label comment" type="text" sortOrder="62" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Band (positions a strong preference can move a product)</label>
+                    <comment><![CDATA[The width of the merchant prior. At 12, a product with a maximal boost can climb about a page; a product two positions down needs only a small preference to overtake. Deep pages beyond the band stay in merchant order.]]></comment>
+                    <validate>validate-digits</validate>
+                    <depends><field id="enabled">1</field><field id="plp_order_mode">personalised</field></depends>
+                </field>
+                <field id="plp_strength" translate="label comment" type="text" sortOrder="63" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Strength (multiplier on the boost lift)</label>
+                    <comment><![CDATA[How hard the listing leans on the profile. The gated boosts are deliberately small (they are tuned for relevance-ranked search); this multiplies them for the listing re-rank. 6 makes a strong, category-specific preference visibly re-order page one without overruling merchandising. Raise it and the shopper's preference dominates; lower it and the merchant's order does.]]></comment>
+                    <validate>validate-number</validate>
+                    <depends><field id="enabled">1</field><field id="plp_order_mode">personalised</field></depends>
+                </field>
+                <field id="category_affinity_bonus" translate="label comment" type="text" sortOrder="64" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Category-Specific Preference Bonus (%)</label>
+                    <comment><![CDATA[Profiles carry, per category the shopper has bought from (ancestors included), the preferences measured on <em>those</em> purchases &mdash; a shopper who buys black tops and red shoes has no global colour preference, but on Tops "black" is right. When a listing has such preferences they replace the global ones and are weighted by this percentage. 100 = no bonus.]]></comment>
+                    <validate>validate-digits</validate>
+                    <depends><field id="enabled">1</field></depends>
                     </field>
 
                     <field id="impact_search" translate="label comment" type="text" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">

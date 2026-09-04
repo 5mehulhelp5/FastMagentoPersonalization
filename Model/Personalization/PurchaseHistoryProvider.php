@@ -78,6 +78,7 @@ class PurchaseHistoryProvider
         $productIds = array_values(array_unique(array_map(static fn ($r) => (int) $r['product_id'], $rows)));
         $valuesByProduct = $this->loadAttributeValues($productIds, $attributeCodes);
         $categoriesByProduct = $this->loadCategories($productIds);
+        $categoryIdsByProduct = $this->loadCategoryPathIds($productIds);
 
         // What came back. A returned item is not evidence of a preference, and continuing to count
         // it as one is the single most confidently wrong thing this profile could do — it would
@@ -105,6 +106,9 @@ class PurchaseHistoryProvider
             $purchases[] = [
                 'values' => $values,
                 'weight' => $qty * $this->recencyWeight((string) $row['created_at'], $halfLifeDays),
+                // Every category this purchase counts towards: the assigned ones AND their
+                // ancestors, so a purchase in "Tops > Hoodies" is evidence on the Tops listing too.
+                'category_ids' => $categoryIdsByProduct[$productId] ?? [],
             ];
         }
 
@@ -371,12 +375,83 @@ class PurchaseHistoryProvider
      * @param int[] $productIds
      * @return array<int, string[]>
      */
+    /**
+     * Category ids per product, ancestors included (every id on the assigned categories' paths
+     * from level 2 down), for category-scoped affinities.
+     *
+     * @param int[] $productIds
+     * @return array<int, int[]>
+     */
+    /**
+     * A purchased row is resolved to the VARIANT that was bought (that is where size and colour
+     * live), but variants are not assigned to categories — their configurable/bundle/grouped
+     * parent is. So category evidence is read through the parent as well as the product itself.
+     *
+     * @param int[] $productIds
+     * @return array<int, int[]> product id => [itself, ...its parents]
+     */
+    private function withParents(array $productIds): array
+    {
+        $out = [];
+        foreach ($productIds as $id) {
+            $out[(int) $id] = [(int) $id];
+        }
+        if (!$productIds) {
+            return $out;
+        }
+        $connection = $this->resource->getConnection();
+        $select = $connection->select()
+            ->from($this->resource->getTableName('catalog_product_relation'), ['parent_id', 'child_id'])
+            ->where('child_id IN (?)', $productIds);
+        foreach ($connection->fetchAll($select) as $row) {
+            $out[(int) $row['child_id']][] = (int) $row['parent_id'];
+        }
+        return $out;
+    }
+
+    private function loadCategoryPathIds(array $productIds): array
+    {
+        if (!$productIds) {
+            return [];
+        }
+        $lineage = $this->withParents($productIds);
+        $lookupIds = array_values(array_unique(array_merge(...array_values($lineage))));
+        $connection = $this->resource->getConnection();
+        $select = $connection->select()
+            ->from(['ccp' => $this->resource->getTableName('catalog_category_product')], ['product_id'])
+            ->join(
+                ['c' => $this->resource->getTableName('catalog_category_entity')],
+                'c.entity_id = ccp.category_id',
+                ['path' => 'c.path']
+            )
+            ->where('ccp.product_id IN (?)', $lookupIds);
+        $byLookup = [];
+        foreach ($connection->fetchAll($select) as $row) {
+            $ids = array_map('intval', explode('/', (string) $row['path']));
+            // Drop the tree root (level 0) and the store root (level 1): nobody lists those.
+            foreach (array_slice($ids, 2) as $id) {
+                $byLookup[(int) $row['product_id']][$id] = $id;
+            }
+        }
+        $out = [];
+        foreach ($lineage as $productId => $ids) {
+            foreach ($ids as $id) {
+                foreach ($byLookup[$id] ?? [] as $categoryId) {
+                    $out[$productId][$categoryId] = $categoryId;
+                }
+            }
+        }
+        return array_map('array_values', $out);
+    }
+
     private function loadCategories(array $productIds): array
     {
         if (!$productIds) {
             return [];
         }
 
+        $lineage = $this->withParents($productIds);
+        $lookupIds = array_values(array_unique(array_merge(...array_values($lineage))));
         $connection = $this->resource->getConnection();
         $select = $connection->select()
             ->from(['ccp' => $this->resource->getTableName('catalog_category_product')], ['product_id'])
@@ -400,7 +475,7 @@ class PurchaseHistoryProvider
                 'v.entity_id = c.entity_id AND v.attribute_id = a.attribute_id AND v.store_id = 0',
                 ['name' => 'v.value']
             )
-            ->where('ccp.product_id IN (?)', $productIds)
+            ->where('ccp.product_id IN (?)', $lookupIds)
             ->where('c.level >= ?', 2);
 
         $out = [];

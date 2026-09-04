@@ -104,4 +104,40 @@ class RequestScope
 
         return $window;
     }
+
+    private ?int $categoryId = null;
+
+    /** The category being listed, captured at pre-dispatch for the PLP arm. */
+    public function setCategoryId(?int $categoryId): void
+    {
+        $this->categoryId = $categoryId !== null && $categoryId > 0 ? $categoryId : null;
+    }
+
+    public function getCategoryId(): ?int
+    {
+        return $this->categoryId;
+    }
+
+    private ?array $rerankWindow = null;
+
+    /**
+     * The position-aware re-rank the response plugin owes: the page the shopper asked for, the
+     * band (positions a maximal boost can move a product) and the strength multiplier.
+     */
+    public function setRerankWindow(int $from, int $size, int $band, float $strength): void
+    {
+        $this->rerankWindow = ['from' => $from, 'size' => $size, 'band' => $band, 'strength' => $strength];
+    }
+
+    public function peekRerankWindow(): ?array
+    {
+        return $this->rerankWindow;
+    }
+
+    public function takeRerankWindow(): ?array
+    {
+        $window = $this->rerankWindow;
+        $this->rerankWindow = null;
+        return $window;
+    }
 }
