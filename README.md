@@ -50,6 +50,7 @@ It ships **dark and off**: nothing on the storefront changes until you turn it o
 - [Feature: GraphQL and headless](#feature-graphql-and-headless)
 - [Feature: the dashboard](#feature-the-dashboard)
 - [Theme compatibility](#theme-compatibility)
+- [Edition compatibility](#edition-compatibility)
 - [What it touches on each surface](#what-it-touches-on-each-surface)
 - [Architecture](#architecture)
 - [Data, privacy and data-subject requests](#data-privacy-and-data-subject-requests)
@@ -789,6 +790,13 @@ analytics cookie), deliberately not Magento's hourly-rotating PHP session.
 The one theme-shaped requirement is that the storefront bundle stays deployed on a cached store
 (facet selections are browser-reported there). `fastmagento:doctor` says whether it is.
 
+## Edition compatibility
+
+| Edition | Status | Notes |
+|---|---|---|
+| **Magento Open Source** | verified | the demo store this README's numbers come from |
+| **Adobe Commerce** (content staging, `row_id`) | verified on a Commerce-shaped copy (0.3.1) | every raw select on a staged table — purchase attribute loads, configurable-parent resolution, category names, exposure roll-up — resolves the link field through core's `Model\Db\EntityLink`; profiles, discrimination tables and `explain` output were identical on both editions. Requires core ≥ 2.10. Category permissions / B2B shared catalogs are not applied by OpenSearch-served pages (core's doctor warns). |
+
 ---
 
 ## What it touches on each surface
@@ -979,7 +987,8 @@ on, and with the module removed, and compare query counts against recorded basel
 
 ## Installation, upgrade and uninstall
 
-**Install** — see [Quick install](#-quick-install). Requires core ≥ 2.7 (the seams). After
+**Install** — see [Quick install](#-quick-install). Requires core ≥ 2.10 (the seams and, on Adobe
+Commerce, `EntityLink`). After
 `setup:upgrade`, run `fastmagento:profile:backfill` and `fastmagento:personalization:discrimination`
 once (or wait for the first hourly cron), then `fastmagento:doctor`.
 
