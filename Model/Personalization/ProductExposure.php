@@ -10,6 +10,7 @@ use Magento\Framework\Search\EngineResolverInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use ParkkTech\FastMagento\Helper\OpenSearchConfig;
 use ParkkTech\FastMagento\Helper\WriteLog;
+use ParkkTech\FastMagento\Model\Db\EntityLink;
 use ParkkTech\FastMagentoPersonalization\Model\Analytics\EventHistoryProvider;
 
 /**
@@ -82,7 +83,8 @@ class ProductExposure
         private readonly \ParkkTech\FastMagentoPersonalization\Model\IndexNames $indexNames,
         private readonly WriteLog $writeLog,
         private readonly EventHistoryProvider $events,
-        private readonly ResourceConnection $resource
+        private readonly ResourceConnection $resource,
+        private readonly EntityLink $entityLink
     ) {
     }
 
@@ -357,10 +359,9 @@ class ProductExposure
 
         $connection = $this->resource->getConnection();
         $select = $connection->select()
-            ->from(
-                ['l' => $this->resource->getTableName('catalog_product_super_link')],
-                ['product_id', 'parent_id']
-            )
+            ->from(['l' => $this->resource->getTableName('catalog_product_super_link')], ['product_id']);
+        $parentId = $this->entityLink->productEntityId($select, 'l', 'parent_id');
+        $select->columns(['parent_id' => new \Zend_Db_Expr($parentId)])
             ->where('l.product_id IN (?)', array_keys($units));
 
         $parents = [];

@@ -16,7 +16,7 @@
     "homepage": "https://github.com/parkktech/FastMagentoPersonalization",
     "require": {
         "php": "~8.1.0||~8.2.0||~8.3.0||~8.4.0||~8.5.0",
-        "parkktech/fastmagento": "^2.7"
+        "parkktech/fastmagento": "^2.10"
     },
     "autoload": {
         "files": [

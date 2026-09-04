@@ -8,7 +8,17 @@ Releases are cut automatically from `main` (see `.github/workflows/release.yml`)
 `#minor` / `feat:` for a minor bump, `#major` / `BREAKING CHANGE` for a major one, `[skip release]`
 to skip.
 
-## [0.3.0] - 2026-09-04
+## [0.3.1] - 2026-09-04
+
+### Fixed
+- **Adobe Commerce (EE) schema compatibility.** Purchase-history attribute loads
+  (`catalog_product_entity_int` / `_text`), configurable-parent resolution
+  (`catalog_product_relation.parent_id`), category names (`catalog_category_entity_varchar`) and
+  exposure roll-up (`catalog_product_super_link.parent_id`) now resolve the link field through
+  FastMagento's `Model\Db\EntityLink` (`row_id` on Commerce content staging). Open Source SQL is
+  unchanged. Requires `parkktech/fastmagento` ^2.10. Verified on a Commerce-shaped copy of the demo
+  catalogue: identical profiles, discrimination tables and `explain` output on both editions.
+
 
 ### Added
 - **Profiled attributes come from the catalogue, not from the code.** Shoppers were profiled on a

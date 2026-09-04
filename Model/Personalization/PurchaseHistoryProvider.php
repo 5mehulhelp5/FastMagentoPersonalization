@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ParkkTech\FastMagentoPersonalization\Model\Personalization;
 
 use Magento\Framework\App\ResourceConnection;
+use ParkkTech\FastMagento\Model\Db\EntityLink;
 
 /**
  * The attribute values a shopper has actually bought, straight from order history.
@@ -19,7 +20,8 @@ use Magento\Framework\App\ResourceConnection;
 class PurchaseHistoryProvider
 {
     public function __construct(
-        private readonly ResourceConnection $resource
+        private readonly ResourceConnection $resource,
+        private readonly EntityLink $entityLink
     ) {
     }
 
@@ -356,7 +358,7 @@ class PurchaseHistoryProvider
             ->from(['e' => $this->resource->getTableName('catalog_product_entity')], ['entity_id'])
             ->join(
                 ['v' => $this->resource->getTableName('catalog_product_entity_int')],
-                'v.entity_id = e.entity_id AND v.store_id = 0',
+                $this->entityLink->productChildJoin('e', 'v') . ' AND v.store_id = 0',
                 ['value']
             )
             ->join(
@@ -400,14 +402,16 @@ class PurchaseHistoryProvider
     {
         $connection = $this->resource->getConnection();
         $select = $connection->select()
-            ->from(['v' => $this->resource->getTableName('catalog_product_entity_text')], ['entity_id', 'value'])
+            ->from(['v' => $this->resource->getTableName('catalog_product_entity_text')], ['value'])
             ->join(
                 ['a' => $this->resource->getTableName('eav_attribute')],
                 'a.attribute_id = v.attribute_id',
                 ['attribute_code']
-            )
+            );
+        $productId = $this->entityLink->productEntityId($select, 'v');
+        $select->columns(['entity_id' => new \Zend_Db_Expr($productId)])
             ->where('v.store_id = 0')
-            ->where('v.entity_id IN (?)', $productIds)
+            ->where($productId . ' IN (?)', $productIds)
             ->where('a.attribute_code IN (?)', $attributeCodes)
             ->where('a.frontend_input = ?', 'multiselect')
             ->where('v.value IS NOT NULL AND v.value <> ?', '');
@@ -512,8 +516,10 @@ class PurchaseHistoryProvider
         }
         $connection = $this->resource->getConnection();
         $select = $connection->select()
-            ->from($this->resource->getTableName('catalog_product_relation'), ['parent_id', 'child_id'])
-            ->where('child_id IN (?)', $productIds);
+            ->from(['r' => $this->resource->getTableName('catalog_product_relation')], ['child_id']);
+        $parentId = $this->entityLink->productEntityId($select, 'r', 'parent_id');
+        $select->columns(['parent_id' => new \Zend_Db_Expr($parentId)])
+            ->where('r.child_id IN (?)', $productIds);
         foreach ($connection->fetchAll($select) as $row) {
             $out[(int) $row['child_id']][] = (int) $row['parent_id'];
         }
@@ -583,7 +589,8 @@ class PurchaseHistoryProvider
             )
             ->join(
                 ['v' => $this->resource->getTableName('catalog_category_entity_varchar')],
-                'v.entity_id = c.entity_id AND v.attribute_id = a.attribute_id AND v.store_id = 0',
+                $this->entityLink->categoryChildJoin('c', 'v')
+                    . ' AND v.attribute_id = a.attribute_id AND v.store_id = 0',
                 ['name' => 'v.value']
             )
             ->where('ccp.product_id IN (?)', $lookupIds)
@@ -854,7 +861,8 @@ class PurchaseHistoryProvider
                 )
                 ->join(
                     ['v' => $this->resource->getTableName('catalog_category_entity_varchar')],
-                    'v.entity_id = c.entity_id AND v.attribute_id = a.attribute_id AND v.store_id = 0',
+                    $this->entityLink->categoryChildJoin('c', 'v')
+                        . ' AND v.attribute_id = a.attribute_id AND v.store_id = 0',
                     ['name' => 'v.value']
                 )
                 ->where('c.level >= ?', 2);
