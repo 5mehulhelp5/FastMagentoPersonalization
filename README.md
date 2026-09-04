@@ -671,8 +671,10 @@ on, and with the module removed, and compare query counts against recorded basel
    the products that satisfy it first; it does not decide the rest are unwanted.
 3. **Link rows keep the merchant's set.** Related / up-sell / cross-sell are re-ordered only; the
    exploration slot never touches them.
-4. **The merchant's head of page one is untouched.** Exploration comes off the *end* of page one,
-   from candidates that matched the query, bounded by a dial that reaches zero.
+4. **The merchant's order is a prior, never discarded.** On a listing a product moves at most a
+   band's worth of positions and only on a gated preference; products the shopper has no
+   preference about keep their merchant order. Exploration comes off the *end* of page one, from
+   candidates that matched the query, bounded by a dial that reaches zero.
 5. **Zero extra SQL per page.** Profile maintenance is off the request path; serving reads
    documents already in hand or adds bounded clauses to a query already being sent.
 6. **Nothing leaves the store.** No third-party service, no model call, no telemetry.

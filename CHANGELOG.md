@@ -8,6 +8,27 @@ Releases are cut automatically from `main` (see `.github/workflows/release.yml`)
 `#minor` / `feat:` for a minor bump, `#major` / `BREAKING CHANGE` for a major one, `[skip release]`
 to skip.
 
+## [Unreleased]
+
+### Added
+- **Position-aware personalised category listings** (default on). The merchant's position order
+  becomes a decaying prior and the shopper's gated boosts a lift: `prior(rank) = exp(−rank/band)`,
+  `lift = 1 + strength × (boost − 1)`, re-ranked over the page window in the response plugin.
+  A product the shopper is owed moves at most *band* positions (12); products without a
+  preference keep their merchant order; deep pages, shopper-chosen sorts, guests and the control
+  arm are untouched. Settings: *Category Listing Order For Profiled Shoppers* (personalised |
+  position), *Band*, *Strength*. Doctor reports the live mode; `explain --category=<id>` shows it.
+- **Category-scoped affinities.** Profiles now carry, per category bought from (ancestors
+  included, resolved through configurable parents), the affinities measured on those purchases;
+  a listing uses them in place of the global set with the *Category-Specific Preference Bonus*
+  (150 %). Profile mapping gains `category_affinities` (added to a live index by a mapping PUT;
+  run `fastmagento:profile:backfill --restart` to populate existing profiles). The page-cache
+  signature is computed per listed category.
+
+### Fixed
+- Category evidence for purchases is read through the configurable/bundle parent: the purchased
+  variant carries no category assignment, so category affinities were almost always empty.
+
 ## [0.1.5] - 2026-09-03
 
 ### Added
