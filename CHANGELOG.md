@@ -8,7 +8,7 @@ Releases are cut automatically from `main` (see `.github/workflows/release.yml`)
 `#minor` / `feat:` for a minor bump, `#major` / `BREAKING CHANGE` for a major one, `[skip release]`
 to skip.
 
-## [Unreleased]
+## [0.1.5] - 2026-09-03
 
 ### Added
 - **`Setup/Uninstall`.** `module:uninstall --remove-data` deletes the five OpenSearch indices
