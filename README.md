@@ -30,6 +30,7 @@ It ships **dark and off**: nothing on the storefront changes until you turn it o
 
 - [Quick install](#-quick-install)
 - [Two switches and a dial](#-two-switches-and-a-dial)
+- [How the weighing works, in plain terms](#%EF%B8%8F-how-the-weighing-works-in-plain-terms)
 - [Troubleshooting — `fastmagento:doctor`](#-troubleshooting--binmagento-fastmagentodoctor)
 - [Why it exists](#why-it-exists)
 - [Problems it solves (problem → solution)](#problems-it-solves-problem--solution)
@@ -110,6 +111,135 @@ Two more are independent of the three above and worth knowing about on day one:
 - **A/B Test** (`ab_enabled`, off) — split shoppers 50/50 and let the dashboard compare what each
   half buys. The only way to know personalisation is *selling more* rather than merely ranking
   differently. Required for *Auto* weight.
+
+---
+
+## ⚖️ How the weighing works, in plain terms
+
+Personalisation here is a chain of small, visible decisions. Nothing in it is a black box, and
+every step has a control you can turn. Read top to bottom: this is exactly the order the code
+runs in.
+
+### 1. Signals — what the store learns from
+
+| Signal | Counts as | Default weight | Why that weight |
+|---|---|---|---|
+| A **purchase** | one observation per unit bought, of the *variant* bought (size, colour…) | **100** | what the shopper settled for, after stock, price and delivery had their say |
+| A **search** or a **facet click** | one observation of what they asked for | **150** (*Weight Of Searches And Facets vs Purchases*) | stated before anything interfered — stronger evidence than a purchase |
+| Something **saved for later** | one observation | same as a stated signal | a per-product statement, uncontaminated |
+| A **product view** | one observation | **25** | weak evidence, weighted as such |
+| A **one-star review** or a **return** | a *negative* on that product | product-level only | never becomes "dislikes blue" — a return is usually the wrong size |
+| **Time** | older evidence fades | **half-life 180 days** (*Recency Half-Life*) | a purchase from six months ago counts half; 0 turns fading off |
+
+The observations are counted per attribute (colour, size, material… whatever you profile), after
+spelling variants of the same value are folded into one, and both **globally** and **per category
+bought from** (ancestors included — a hoodie bought in *Women › Tops › Hoodies* is evidence on
+*Tops* too).
+
+### 2. Gates — when a preference is real enough to act on
+
+Two questions, both must be yes:
+
+- **Does this shopper really have the preference?** Two numbers per attribute:
+  *strength* (how concentrated the choices are — a shopper who buys every colour has no colour
+  preference) must reach *Minimum Affinity Concentration* (**35**), and *confidence* (how much
+  history there is — one purchase is not a taste) must reach *Minimum Confidence* (**50**).
+- **Would acting on it change anything?** Measured on your catalogue, per value: a value most
+  products carry cannot re-order a page (boosting "size L" when half the catalogue has L moves
+  nothing and reports success). Values near-uniform across the catalogue are refused; rare
+  values score higher. There is no list of "good" or "bad" attributes — only measurement, kept
+  fresh by the hourly cron.
+
+A **stated requirement** — a size or a year the shopper typed into the search box and you mapped
+with *Stated Requirements — Attribute Mapping* — skips the first gate (there is nothing to infer)
+and ranks at *Strength Of A Stated Requirement* (**300 %**) of the strongest inferred preference:
+what someone typed beats what we worked out about them.
+
+### 3. Boosts — how much a preference pushes
+
+For each value that passed both gates, the boost is:
+
+```
+share of their choices × strength × confidence × catalogue discrimination × surface impact
+```
+
+capped at the **2** strongest values per surface (*Maximum Boosted Values Per Surface* — a
+page-cache setting first: every distinct boost combination is one more cached variant of every
+page). The **surface impact** dials are the main volume controls:
+
+| Surface | Dial | Default | Meaning |
+|---|---|---|---|
+| Search results and instant search | *Impact — Search Results* | **25** | applied after text relevance, so a specific search still wins |
+| Category listings | *Impact — Category Listings* | **25** | the boost size; how far it can move a product is decided in step 4 |
+| Related, up-sell, cross-sell | *Impact — Related, Up-sell & Cross-sell* | **50** | a recommendation row exists to be relevant; the merchant's set is the only pool |
+
+Then one dial over all of them — *Personalisation Weight*: **Normal**, **Less** (half), **More**
+(nearly double), or **Auto** (a slow nightly tuner that moves toward whatever the A/B test shows
+converts best, and says on the dashboard why it is holding still).
+
+**Boosts only ever push up. Nothing is ever hidden.** A shopper who buys black sees black tops
+first, and every other top exactly where it would have been otherwise.
+
+### 4. Where the boosts land — surface by surface
+
+- **Search**: the boost multiplies the relevance score. Two products with a similar text match
+  will re-order; a product that matches the words much better still wins.
+- **Category listings** (*Category Listing Order For Profiled Shoppers*, default
+  *position-aware personalised*): your merchandising order becomes a **prior** rather than the
+  law. Think of every product carrying its merchant rank as a handicap that grows with distance
+  from the top; the shopper's boost, multiplied by *Strength* (**6**), is what can overcome it,
+  and *Band* (**12** positions) says how far. In practice: a product this shopper is owed climbs
+  up to about a page; products they have no preference about keep their order relative to each
+  other; page three stays page three. If the profile knows what they buy **in this category**,
+  that set is used instead of the global one, weighted by *Category-Specific Preference Bonus*
+  (**150 %**). Choose *merchant position* to get the old behaviour: the listing never changes
+  except among products sharing a position.
+- **Recommendation rows**: only the order changes; the products the merchant linked are the
+  products shown.
+- **Configurable product pages**: the variant the shopper usually buys is preselected when in
+  stock (*Preselect The Variant A Shopper Prefers*); everything stays selectable.
+
+### 5. Balances — what keeps it honest
+
+- **Exploration slot** (*Exploration Slot*, **10 %** of page one): the last card or so on page
+  one goes to the least-shown product that still matched, so new stock enters the loop. Runs for
+  every shopper, personalised or not.
+- **A/B test** (*A/B Test*): half of shoppers get personalisation, half get the store exactly as
+  it is; the dashboard compares what each half buys. This is the only way to know it sells more.
+- **Everything is a boost, never a filter**, on every surface, in every mode.
+
+### A worked example (from the demo store)
+
+A shopper with eleven orders: 13 of 14 colour choices were **black**, sizes were XS twice.
+
+- Colour: strength 0.86, confidence 1.0 → passes gate 1. Black is on 34 % of listings → passes
+  gate 2 (discriminating enough). **Actionable.**
+- Size: strength 1.0 but confidence 0.49 → fails gate 1 (two data points). Even if it passed, XS
+  is near-uniform across the apparel catalogue → would fail gate 2. **Ignored** — correctly.
+- Search "hoodie": boost `+0.11` on black → the five hoodies with a black variant move ahead of
+  the four without; text relevance still decides among them.
+- *Tops* listing, personalised order: the four tops with a black variant lead the page, the other
+  eight keep their merchant order; the guest sees the merchant order unchanged.
+- The same shopper in the A/B **control** arm sees the merchant order everywhere — the profile is
+  built, nothing reads it.
+
+`bin/magento fastmagento:personalization:explain --customer=<id> --surface=plp --category=<id>`
+prints these exact numbers for any shopper, and which gate stopped each value that was not used.
+
+### Which control to turn
+
+| You want… | Turn |
+|---|---|
+| more or less personalisation everywhere | *Personalisation Weight* (or *Auto* with the A/B test on) |
+| listings to move more / less | *Strength*, then *Band* |
+| listings never to move | *Category Listing Order* → merchant position |
+| search to stay strictly relevance-first | lower *Impact — Search Results* |
+| recommendations in the merchant's order | *Impact — Related, Up-sell & Cross-sell* = 0 |
+| fewer "guessed" preferences | raise *Minimum Confidence* / *Minimum Affinity Concentration* |
+| purchases to count more than searches | lower *Weight Of Searches And Facets vs Purchases* |
+| old behaviour to matter less | shorten *Recency Half-Life* |
+| new products to get more exposure | raise *Exploration Slot* |
+| to know whether any of it sells more | *A/B Test* on, read the dashboard |
 
 ---
 
