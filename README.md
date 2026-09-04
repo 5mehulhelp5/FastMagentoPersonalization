@@ -31,6 +31,7 @@ It ships **dark and off**: nothing on the storefront changes until you turn it o
 - [Quick install](#-quick-install)
 - [Two switches and a dial](#-two-switches-and-a-dial)
 - [How the weighing works, in plain terms](#%EF%B8%8F-how-the-weighing-works-in-plain-terms)
+- [See it work: three shoppers, one colour each](#-see-it-work-three-shoppers-one-colour-each)
 - [Troubleshooting — `fastmagento:doctor`](#-troubleshooting--binmagento-fastmagentodoctor)
 - [Why it exists](#why-it-exists)
 - [Problems it solves (problem → solution)](#problems-it-solves-problem--solution)
@@ -240,6 +241,53 @@ prints these exact numbers for any shopper, and which gate stopped each value th
 | old behaviour to matter less | shorten *Recency Half-Life* |
 | new products to get more exposure | raise *Exploration Slot* |
 | to know whether any of it sells more | *A/B Test* on, read the dashboard |
+
+---
+
+## 👀 See it work: three shoppers, one colour each
+
+The quickest way to believe any of this is to build shoppers whose history is unambiguous and
+watch every surface follow them. This is exactly what was run on the demo store (Magento 2.4.9,
+sample data, Hyvä), and what you can reproduce on yours.
+
+**Setup.** Three customers, each with eight to ten orders of configurable products, always the
+same colour and the same size: *Blue + M*, *Red + XL*, *Gray + S*. Then:
+
+```bash
+bin/magento fastmagento:profile:backfill --restart
+bin/magento fastmagento:profile:inspect --customer=<id>
+bin/magento fastmagento:personalization:explain --customer=<id> --surface=plp --category=<id>
+```
+
+**What the profiles said.** Colour: strength 1.0, confidence 1.0, actionable — Blue on 43 % of
+listings, Red on 29 %, Gray on 17 %. Size: strength 1.0, confidence 1.0, but **non-discriminating**
+("M" is on 52 % of the catalogue), so it is refused for ranking and kept for the product page. Each
+shopper also got category-scoped sets for the men's categories they bought in.
+
+**What each shopper then saw, against a guest** (A/B test off for the comparison):
+
+| Surface | Guest | Blue + M shopper | Red + XL shopper | Gray + S shopper |
+|---|---|---|---|---|
+| *Men › Hoodies* listing (category-scoped set, ×1.5) | merchant order | all six blue-capable hoodies first, rest in merchant order | the six red ones first | both gray ones first |
+| *Women › Tops* listing (no scoped set → global colour) | merchant order | blue tops rise within the band | the one red-capable top first | the gray tops first |
+| Instant search "hoodie" | relevance order | blue hoodies ahead among equal matches | red ahead | gray ahead |
+| Product page of a hoodie sold in Black / Gray / Orange | no preselection | size **M** preselected | size **XL** preselected | size **S** and colour **Gray** preselected |
+| That product's related row (12 hoodies) | merchant order | the six blue ones lead, all twelve present | the red ones lead | the gray one leads |
+
+Three things worth noticing in that table, because they are the design rather than accidents:
+
+- **Size steers the variant, not the listing.** M is on half the catalogue; boosting it would
+  shift every product equally and change nothing. Among one product's variants it is exactly
+  right, so that is where it is used.
+- **Colour is only preselected where the product has it.** The blue and red shoppers got their
+  size but not their colour on a product sold in black, gray and orange; the gray shopper got both.
+- **Nothing disappeared.** Every listing kept every product, every related row kept all twelve;
+  only the order changed, and only for shoppers with an actionable preference. The guest saw the
+  store exactly as merchandised.
+
+With the A/B test **on**, two of the three shoppers happened to hash into the control arm and saw
+the merchant order everywhere while their profiles kept building — which is what the control arm
+is for. The dashboard counts what each arm buys; `explain` tells you which arm a shopper is in.
 
 ---
 
