@@ -39,6 +39,13 @@
                         <comment>Aggregate purchase, review and category history into per-shopper profiles. Runs off the request path and does not affect the storefront on its own. Leave on: turning it off means a cold start whenever you enable serving.</comment>
                     </field>
 
+                    <field id="profile_attributes" translate="label comment" type="text" sortOrder="11" showInDefault="1" showInWebsite="1" showInStore="1">
+                        <label>Attributes To Profile</label>
+                        <config_path>fastmagento/personalization/profile_attributes</config_path>
+                        <comment><![CDATA[Comma-separated attribute codes a shopper's history is counted on, e.g. <code>color,size</code> for apparel, <code>material,piece_style,king_height</code> for a chess store, <code>thread_size,material,brand</code> for fasteners. <b>Leave blank to auto-detect</b>: every select or multiselect attribute that is filterable on category pages or in search, colour and size first, widest first, capped at 20. Attributes mapped under Stated Requirements are always included. Profiling an attribute never forces a lift — a value most of the store (or most of the category being listed) carries is refused at ranking time. Run <code>bin/magento fastmagento:doctor</code> to see the resolved list.]]></comment>
+                        <depends><field id="build_profiles">1</field></depends>
+                    </field>
+
                     <field id="collect_events" translate="label comment" type="select" sortOrder="15" showInDefault="1" showInWebsite="1" showInStore="1">
                         <label>Record Searches And Facet Selections</label>
                         <config_path>fastmagento/personalization/collect_events</config_path>

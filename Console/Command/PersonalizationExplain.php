@@ -125,13 +125,20 @@ class PersonalizationExplain extends Command
                 // say, and it is the thing a merchant asking "why did this rank here" wants first:
                 // a requirement the shopper stated, or a preference we inferred.
                 $output->writeln(sprintf(
-                    '  <info>+%.4f</info>  %s = %-8s  %s',
+                    '  <info>+%.4f</info>  %s = %-8s  %s%s',
                     round((float) $term['weight'], 4),
                     (string) $term['field'],
                     (string) $term['term'],
                     isset($term['fact'])
                         ? sprintf('<info>STATED</info> %s = %s', (string) $term['fact'], (string) $term['label'])
-                        : sprintf('<comment>inferred</comment> %s', (string) $term['label'])
+                        : sprintf('<comment>inferred</comment> %s', (string) $term['label']),
+                    isset($term['share'])
+                        ? sprintf(
+                            '  <comment>[%.0f%% of the %s carries it]</comment>',
+                            (float) $term['share'] * 100,
+                            ($term['gated_on'] ?? 'store') === 'category' ? 'category' : 'store'
+                        )
+                        : ''
                 ));
             }
             $output->writeln(sprintf(

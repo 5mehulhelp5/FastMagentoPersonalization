@@ -41,9 +41,6 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class ProfileBackfill extends Command
 {
-    /** One shared definition — the cron rebuilds what this seeds, so they must not drift apart. */
-    private const DEFAULT_ATTRIBUTES = PersonalizationConfig::DEFAULT_PROFILE_ATTRIBUTES;
-
     private const FLAG_CURSOR = 'fastmagento_profile_backfill_cursor';
 
     private const OPT_ATTRIBUTES = 'attributes';
@@ -60,6 +57,7 @@ class ProfileBackfill extends Command
 
     public function __construct(
         private readonly State $appState,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileAttributes $profileAttributes,
         private readonly ResourceConnection $resource,
         private readonly ProfileBuilder $builder,
         private readonly ProfileRepository $repository,
@@ -75,7 +73,7 @@ class ProfileBackfill extends Command
     {
         $this->setName('fastmagento:profile:backfill')
             ->setDescription('Build shopper profiles for every customer with order history (resumable)')
-            ->addOption(self::OPT_ATTRIBUTES, null, InputOption::VALUE_REQUIRED, 'Attributes to profile', implode(',', self::DEFAULT_ATTRIBUTES))
+            ->addOption(self::OPT_ATTRIBUTES, null, InputOption::VALUE_REQUIRED, 'Attributes to profile (blank = the admin list, or auto-detected from the catalogue)', '')
             ->addOption(self::OPT_BATCH, null, InputOption::VALUE_REQUIRED, 'Customers per batch', '500')
             ->addOption(self::OPT_LIMIT, null, InputOption::VALUE_REQUIRED, 'Stop after this many customers (0 = all)', '0')
             ->addOption(self::OPT_FROM, null, InputOption::VALUE_REQUIRED, 'Start after this customer id')
@@ -119,7 +117,19 @@ class ProfileBackfill extends Command
             explode(',', (string) $input->getOption(self::OPT_ATTRIBUTES))
         )));
         if (!$attributes) {
-            $output->writeln('<error>--attributes resolved to an empty list.</error>');
+            $resolved = $this->profileAttributes->describe();
+            $attributes = $resolved['codes'];
+            $output->writeln(sprintf(
+                '<comment>Attributes: %s (%s)</comment>',
+                implode(',', $attributes),
+                $resolved['source'] === $this->profileAttributes::SOURCE_CONFIGURED
+                    ? 'from Attributes To Profile'
+                    : 'auto-detected from the catalogue\'s filterable attributes'
+            ));
+        }
+        if (!$attributes) {
+            $output->writeln('<error>No attributes to profile: the catalogue has no filterable select/multiselect '
+                . 'attributes and none are configured under Personalisation > Attributes To Profile.</error>');
 
             return Command::INVALID;
         }

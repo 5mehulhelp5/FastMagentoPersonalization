@@ -31,6 +31,7 @@ It ships **dark and off**: nothing on the storefront changes until you turn it o
 - [Quick install](#-quick-install)
 - [Two switches and a dial](#-two-switches-and-a-dial)
 - [How the weighing works, in plain terms](#%EF%B8%8F-how-the-weighing-works-in-plain-terms)
+- [Which attributes it learns — any store, not just apparel](#-which-attributes-it-learns--any-store-not-just-apparel)
 - [See it work: three shoppers, one colour each](#-see-it-work-three-shoppers-one-colour-each)
 - [Troubleshooting — `fastmagento:doctor`](#-troubleshooting--binmagento-fastmagentodoctor)
 - [Why it exists](#why-it-exists)
@@ -115,6 +116,93 @@ Two more are independent of the three above and worth knowing about on day one:
 
 ---
 
+## 🧭 Which attributes it learns — any store, not just apparel
+
+Nothing in the ranking knows what a colour is. What it knows is: *this shopper keeps choosing the
+same value of some attribute, and that value is rare enough on this page that putting it first
+changes something.* Colour and size are simply the attributes an apparel store's shoppers are most
+consistent about. A fastener store's shoppers are consistent about thread size and material; a
+chess store's about material and piece style; a tyre store's about a size. The mechanism is
+identical. Only the attribute list differs — and that list now comes from **your** catalogue, not
+from a constant in the code.
+
+### Which attributes are counted
+
+| Step | Rule | Where you see it |
+|---|---|---|
+| 1 | **Attributes To Profile** (admin, comma-separated codes) when it is set | the setting itself |
+| 2 | Otherwise **auto-detect**: every `select` / `multiselect` product attribute that is filterable on category pages or in search, has at least two options and is not a system attribute. `color` and `size` lead when they exist, then the widest attributes first, capped at 20. | `fastmagento:doctor` → *Profiled attributes* |
+| 3 | Every attribute you mapped under **Stated Requirements** is always added | same line, after `facts:` |
+
+Two details that matter outside apparel:
+
+- **Multiselects count every value.** A top listed as *Organic Cotton, Spandex* is half an
+  observation of each. Material, pattern, features, compatible-with lists all work this way.
+- **Variants inherit their parent's attributes.** The thing a shopper actually buys is the child
+  (size M, blue); the material, the style, the piece set, the thread pitch usually live on the
+  configurable parent. The child's own values win; the parent's fill in the rest. Without this a
+  shopper who buys wool coat after wool coat would never be seen to prefer wool.
+
+The attribute list is a *what to count* decision only. **Profiling an attribute never forces a
+lift.** Whether a value can move anything is decided at ranking time, per value, per page — which
+is the part that makes a wide list safe.
+
+### The formula, and why a store that only sells plastic pieces is handled
+
+For every value a shopper leans towards, on every request, the boost is:
+
+```
+uplift = share_in_history × strength × confidence × min(1, idf ÷ 2) × surface_impact × category_bonus
+
+idf    = ln( products_in_population ÷ products_in_population_carrying_the_value )
+refuse = the value is on more than half of the population, or on none of it
+```
+
+and the **population** is:
+
+| Page | Population the value is measured against |
+|---|---|
+| a category listing, when that category has **20 or more** products | **that category** (measured per category, per store view) |
+| a smaller category | the whole store |
+| search, recommendations | the whole store |
+
+So the same preference is judged differently on different pages, which is exactly what you want.
+From the demo store, one shopper who buys Organic Cotton tops:
+
+| Value | Population | Share | Result |
+|---|---|---|---|
+| Organic Cotton | store | 22 % (idf 1.52) | lifted in search and recommendations |
+| Organic Cotton | *Women › Tops* (50 products) | 18 % | lifted on that listing, gated on the category |
+| Organic Cotton | *Women › Bottoms* (25 products) | **52 %** | **refused there** — half the page already is; the boost falls to her next material |
+| Solid (pattern) | store | 67 % | refused everywhere, although she buys it 100 % of the time |
+| M (size) | store | 52 % | refused |
+
+That last column is the answer to "what if the site only sells plastic chess pieces": *Plastic*
+is on 100 % of the population, it is refused on every page, and
+`fastmagento:personalization:discrimination --show=material` says so in the verdict column.
+Nothing is lifted on material; whatever else the shopper is consistent about (piece style,
+king height, weight class) is judged on its own share. A store that sells plastic, wood and
+metal sets gets a material lift for the shopper who always buys wood — and the shopper who buys
+all three gets none, because *strength* (how concentrated the choices are) never reaches the gate.
+
+### Setting up a non-apparel store
+
+1. Make the attributes shoppers choose by **filterable** (Stores › Attributes › Product ›
+   Storefront Properties) — or list them under *Attributes To Profile*. Values must be select /
+   multiselect **options**: a decimal or text attribute (`length = 0.25`) is not profiled, so model
+   sizes shoppers pick between as options (`1/4"`, `5/16"`). Spelling variants of one value
+   (`32x10R15`, `32x10-15`) are folded before counting.
+2. `bin/magento fastmagento:personalization:discrimination` (measures the store and every
+   category with 20+ products), then `bin/magento fastmagento:profile:backfill`.
+3. `bin/magento fastmagento:doctor` — read *Profiled attributes* and *Discrimination table*.
+4. For one real customer: `bin/magento fastmagento:profile:inspect --customer=<id>` shows what
+   was counted and which gate each attribute passed or failed;
+   `fastmagento:personalization:explain --customer=<id> --category=<id>` shows the clauses,
+   each tagged with the share of the *store* or the *category* that carries the value.
+5. Turn on the A/B test and let the dashboard decide whether it sells more on **your** data.
+
+---
+
 ## ⚖️ How the weighing works, in plain terms
 
 Personalisation here is a chain of small, visible decisions. Nothing in it is a black box, and
@@ -132,8 +220,9 @@ runs in.
 | A **one-star review** or a **return** | a *negative* on that product | product-level only | never becomes "dislikes blue" — a return is usually the wrong size |
 | **Time** | older evidence fades | **half-life 180 days** (*Recency Half-Life*) | a purchase from six months ago counts half; 0 turns fading off |
 
-The observations are counted per attribute (colour, size, material… whatever you profile), after
-spelling variants of the same value are folded into one, and both **globally** and **per category
+The observations are counted per attribute — the ones your catalogue makes filterable, or the
+ones you list (see [Which attributes it learns](#-which-attributes-it-learns--any-store-not-just-apparel)) —
+after spelling variants of the same value are folded into one, and both **globally** and **per category
 bought from** (ancestors included — a hoodie bought in *Women › Tops › Hoodies* is evidence on
 *Tops* too).
 
@@ -148,8 +237,10 @@ Two questions, both must be yes:
 - **Would acting on it change anything?** Measured on your catalogue, per value: a value most
   products carry cannot re-order a page (boosting "size L" when half the catalogue has L moves
   nothing and reports success). Values near-uniform across the catalogue are refused; rare
-  values score higher. There is no list of "good" or "bad" attributes — only measurement, kept
-  fresh by the hourly cron.
+  values score higher. On a category listing the measurement is **that category's** (when it has
+  20+ products): a material that is rare in the store but on every product in one category is
+  refused on that category's page and lifted everywhere else. There is no list of "good" or
+  "bad" attributes — only measurement, kept fresh by the hourly cron.
 
 A **stated requirement** — a size or a year the shopper typed into the search box and you mapped
 with *Stated Requirements — Attribute Mapping* — skips the first gate (there is nothing to infer)
@@ -291,6 +382,31 @@ is for. The dashboard counts what each arm buys; `explain` tells you which arm a
 
 ---
 
+### A fourth shopper, no colour at all
+
+`organic.cotton@example.com` bought eight *Women › Tops* in six different colours and four sizes.
+The only thing the orders have in common is a material.
+
+```
+$ bin/magento fastmagento:profile:inspect --customer=6
+  pattern   strength=1.00  confidence=1.00  n=8   ACTIONABLE but NON-DISCRIMINATING — "Solid" is on 67% of the catalogue
+  material  strength=0.49  confidence=1.00  n=8   ACTIONABLE ("Organic Cotton" on 22% of listings, idf 1.52)
+       Organic Cotton  56.2%  ██████████████
+  color     strength=0.25  confidence=1.00  n=8   ignored (too spread out, or too little evidence)
+
+$ bin/magento fastmagento:personalization:explain --customer=6 --category=21     # Women › Tops
+PLP  +0.0885  material = 157   inferred Organic Cotton   [18% of the category carries it]
+
+$ bin/magento fastmagento:personalization:explain --customer=6 --category=22     # Women › Bottoms
+PLP  +0.0077  material = 148   inferred Lycra®           [8% of the category carries it]
+     +0.0070  material = 142   inferred Cocona®          [16% of the category carries it]
+```
+
+On *Women › Tops* she is lifted on Organic Cotton (18 % of that category). On *Women › Bottoms*
+Organic Cotton is 52 % of the category, so it is refused there and her next two materials rank
+instead. Through Varnish, logged in, the first Organic Cotton top moves from fourth to first;
+the guest page is unchanged. Colour, which she has no consistent taste in, is never touched.
+
 ## 🩺 Troubleshooting — `bin/magento fastmagento:doctor`
 
 Every failure mode of a ranking feature is silent: the storefront keeps returning HTTP 200 while
@@ -368,6 +484,7 @@ has never been shown a measured chance to be seen, because "never shown" is not 
 | Feature | What it fixes |
 |---|---|
 | 🧬 [Shopper profiles from signals you already have](#feature-shopper-profiles-from-signals-you-already-have) | cold start, vendor event pipelines |
+| 🧭 [Learns on your catalogue's attributes](#-which-attributes-it-learns--any-store-not-just-apparel) | colour/size hard-wired into a hardware store; a value that is universal in one category lifting nothing there |
 | 🚪 [Two gates before a boost](#feature-two-gates-before-a-boost-is-emitted) | invented preferences, boosts that move nothing |
 | 🔀 [Personalised search, listings, recommendations](#feature-personalised-search-listings-and-recommendations) | one ranking for every shopper |
 | 🗣️ [Stated requirements ("facts")](#feature-stated-requirements-facts) | "queen bed" / "2021 model" typed and thrown away |
@@ -772,6 +889,7 @@ setting, cron row and flag this module created (see [Installation, upgrade and u
 | Personalisation Weight | `weight_mode` | Normal | Normal / Less (½) / More (≈2×) / **Auto** (nightly tuner against the A/B control; needs the A/B test). |
 | A/B Test | `ab_enabled` | Off | 50/50 sticky split with a true control arm; the dashboard compares what each half buys. |
 | Build Shopper Profiles | `build_profiles` | On | Aggregate purchase, review, return and category history into profiles, off the request path. |
+| Attributes To Profile | `profile_attributes` | *(blank = auto)* | Comma-separated codes a shopper's history is counted on. Blank auto-detects every filterable select/multiselect attribute (colour and size first, widest first, cap 20). Fact attributes are always added. See [Which attributes it learns](#-which-attributes-it-learns--any-store-not-just-apparel). |
 | Record Searches And Facet Selections | `collect_events` | On | Independent of the other switches. On a cached store the browser reports facet clicks. |
 | Impact — Category Listings (0–100) | `impact_plp` | 25 | The boost size on listings; the listing dials below decide how far it can move a product. 0 disables the surface. |
 | Category Listing Order For Profiled Shoppers | `plp_order_mode` | personalised | *Position-aware personalised* (merchant order as a prior, boosts as lift) or *Merchant position* (ties only). |
@@ -798,10 +916,10 @@ setting, cron row and flag this module created (see [Installation, upgrade and u
 
 | Command | Options | What it does |
 |---|---|---|
-| `fastmagento:profile:backfill` | `--skip-anonymous`, `--anonymous-limit=` | Build profiles for every customer with order history (resumable via a stored cursor), then recent anonymous shoppers. |
+| `fastmagento:profile:backfill` | `--attributes=` (blank = the resolved list), `--skip-anonymous`, `--anonymous-limit=` | Build profiles for every customer with order history (resumable via a stored cursor), then recent anonymous shoppers. |
 | `fastmagento:profile:inspect` | `--customer=<id>`, `--products`, `--attributes=`, `--half-life=`, `--save`, `--forget-facts` | Show a shopper's affinities, facts, negatives and traits; optionally persist a rebuilt profile or clear inferred facts. Read-only unless told otherwise. |
 | `fastmagento:personalization:explain` | `--customer=<id>`, `--surface=`, `--store=`, `--category=<id>` | Show the exact scoring clauses personalisation would add for one shopper on one surface, and which gate stopped each value that was not emitted. The first thing to run when "it doesn't seem to do anything". |
-| `fastmagento:personalization:discrimination` | `--attributes=`, `--store=`, `--target=`, `--show` | Measure per-value catalogue discrimination (IDF) on the index being ranked; `--show` prints the table. |
+| `fastmagento:personalization:discrimination` | `--attributes=` (blank = the profiled attributes + category), `--store=`, `--target=`, `--show`, `--category=<id>` (print the table as a listing of that category is gated) | Measure per-value catalogue discrimination (IDF) on the index being ranked; `--show` prints the table. |
 | `fastmagento:personalization:exposure` | `--store=`, `--limit=`, `--show` | Measure conversion per impression (Wilson lower bound) over the impression window; `--show` prints the most- and least-shown products. |
 | `fastmagento:personalization:tune` | `--window=` | Run one auto-weight step against the pooled A/B evidence and print the decision and its reason. |
 
@@ -904,6 +1022,13 @@ are created and measured by the first hourly cron run. Run the two CLI commands 
 **How do I know it is actually doing something?** `fastmagento:personalization:explain --customer=<id>`
 prints the clauses it would add and why each value was or was not emitted. Then turn on the A/B
 test and read the dashboard.
+
+**We don't sell clothes. Does any of this apply?** Yes — see [Which attributes it learns](#-which-attributes-it-learns--any-store-not-just-apparel).
+The list of profiled attributes comes from your catalogue's filterable attributes (or the ones you
+type in), multiselects and parent-level attributes are counted, and every value is judged by how
+much of the *page's* population carries it. A hardware store's "1/4 inch" shopper and a chess
+store's "wood" shopper are lifted by the same code that lifts a "blue, size M" shopper here; a
+value the whole store or the whole category carries is refused, and the doctor tells you which.
 
 **Multi-store?** Profiles, discrimination and exposure are per store view; the impact dials and
 switches are store-view scoped.

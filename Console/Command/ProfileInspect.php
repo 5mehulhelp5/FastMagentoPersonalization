@@ -29,11 +29,9 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class ProfileInspect extends Command
 {
-    // `category` is added automatically by the history provider; it is not an EAV attribute.
-    private const DEFAULT_ATTRIBUTES = 'color,size';
-
     public function __construct(
         private readonly State $appState,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileAttributes $profileAttributes,
         private readonly ResourceConnection $resource,
         private readonly PurchaseHistoryProvider $history,
         private readonly AffinityCalculator $calculator,
@@ -53,7 +51,7 @@ class ProfileInspect extends Command
             ->setDescription('Show the purchase-derived attribute affinities for a shopper (read-only)')
             ->addOption('customer', null, InputOption::VALUE_REQUIRED, 'Customer entity id')
             ->addOption('products', null, InputOption::VALUE_REQUIRED, 'Comma-separated product ids to profile instead of a customer')
-            ->addOption('attributes', null, InputOption::VALUE_REQUIRED, 'Attributes to profile', self::DEFAULT_ATTRIBUTES)
+            ->addOption('attributes', null, InputOption::VALUE_REQUIRED, 'Attributes to profile (blank = the store\'s resolved list)', '')
             ->addOption('half-life', null, InputOption::VALUE_REQUIRED, 'Recency half-life in days (0 = no decay)', '180')
             ->addOption('save', null, InputOption::VALUE_NONE, 'Persist the profile to the OpenSearch profile index')
             ->addOption('forget-facts', null, InputOption::VALUE_NONE, 'Clear the inferred facts for this shopper (they are proposals, and a shopper may reject them)');
@@ -73,6 +71,10 @@ class ProfileInspect extends Command
             'trim',
             explode(',', (string) $input->getOption('attributes'))
         )));
+        if (!$attributes) {
+            $attributes = $this->profileAttributes->resolve();
+            $output->writeln(sprintf('<comment>attributes: %s</comment>', implode(',', $attributes)));
+        }
 
         $customerId = (int) $input->getOption('customer');
         $productList = (string) $input->getOption('products');

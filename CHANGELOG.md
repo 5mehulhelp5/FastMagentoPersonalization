@@ -8,6 +8,44 @@ Releases are cut automatically from `main` (see `.github/workflows/release.yml`)
 `#minor` / `feat:` for a minor bump, `#major` / `BREAKING CHANGE` for a major one, `[skip release]`
 to skip.
 
+## [0.3.0] - 2026-09-04
+
+### Added
+- **Profiled attributes come from the catalogue, not from the code.** Shoppers were profiled on a
+  hard-wired `color,size`, which on any non-apparel store meant nothing was counted, nothing was
+  lifted and nothing said why. New `Model\Personalization\ProfileAttributes` resolves the list:
+  the admin setting **Attributes To Profile** (`profile_attributes`) when set, otherwise every
+  filterable select/multiselect product attribute (colour and size first, widest first, capped at
+  20), plus every mapped fact attribute. Used by the hourly cron, `profile:backfill`,
+  `profile:inspect` and the discrimination build, so a profiled value is always a gated value.
+  The doctor prints the resolved list as *Profiled attributes*.
+- **Category-relative discrimination.** The discrimination build now also measures every category
+  with 20+ products on its own (`store:<id>:cat:<id>` docs, one aggregation per attribute). A
+  category listing is gated on **its own** population: a value rare store-wide but on more than
+  half of one category is refused on that listing and lifted everywhere else. Smaller categories
+  fall back to the store-wide table. `discrimination --show=<attr> --category=<id>` prints the
+  table as that listing sees it; `explain` tags each clause with the share of the store or the
+  category that carries the value.
+- **Multiselect attributes are profiled.** Values in the TEXT table (material, pattern, features…)
+  are split and each value counted; a product's observation is shared across its values.
+- **Variants inherit parent attributes.** The purchased child carries what it varies on; material,
+  style, fit and the like live on the configurable parent and are now inherited (child wins).
+- README: *Which attributes it learns — any store, not just apparel* (resolution rules, the full
+  uplift formula, the population table, the "store that only sells plastic pieces" case, setup
+  steps for a non-apparel store) and a fourth demo shopper with no colour preference at all.
+
+### Changed
+- `fastmagento:profile:backfill --attributes`, `profile:inspect --attributes` and
+  `personalization:discrimination --attributes` default to blank, meaning the resolved list;
+  the commands print which list they used and where it came from.
+- `PersonalizationConfig::DEFAULT_PROFILE_ATTRIBUTES` is deprecated and no longer read.
+
+### Upgrade notes
+- Run `bin/magento fastmagento:personalization:discrimination` once after upgrading (or wait
+  for the hourly cron) so the per-category tables exist; until then listings are gated on the
+  store-wide table exactly as before. Re-run `fastmagento:profile:backfill --restart` to pick up
+  the wider attribute list on existing profiles.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

@@ -59,6 +59,17 @@ class ValueDiscrimination
     public const NEAR_UNIFORM_SHARE = 0.5;
 
     /**
+     * Category-relative measurement. A value can be rare across the store and universal inside
+     * one category (every product in "Brass Fittings" is brass; every piece in "Plastic Sets" is
+     * plastic). Boosting it on THAT listing moves nothing, so shares are also measured per
+     * category and a category listing is gated on its own population when it has enough
+     * products to say something. Smaller categories fall back to the store-wide figure.
+     */
+    public const MIN_CATEGORY_DOCS = 20;
+    public const MAX_CATEGORIES = 3000;
+    public const MAX_VALUES_PER_ATTRIBUTE = 300;
+
+    /**
      * Magento's own catalogue search index — what the category listing and native search rank.
      * Holds only VISIBLE products (configurable parents), and stores the profiled attributes as
      * EAV option IDS (`color` = 49).
@@ -80,6 +91,9 @@ class ValueDiscrimination
 
     /** @var array<int, array<string, mixed>|null> per-request memo, keyed by store id */
     private array $memo = [];
+
+    /** @var array<string, array<string, mixed>|null> per-request memo of category sections */
+    private array $categoryMemo = [];
 
     public function __construct(
         private readonly ClientResolver $clientResolver,
@@ -122,9 +136,10 @@ class ValueDiscrimination
         string $attributeCode,
         string $value,
         string $target = self::TARGET_NATIVE,
-        ?int $storeId = null
+        ?int $storeId = null,
+        ?int $categoryId = null
     ): ?float {
-        $section = $this->section($target, $storeId);
+        $section = $this->section($target, $storeId, $categoryId);
         if ($section === null) {
             return null;
         }
@@ -151,9 +166,10 @@ class ValueDiscrimination
         string $attributeCode,
         string $value,
         string $target = self::TARGET_NATIVE,
-        ?int $storeId = null
+        ?int $storeId = null,
+        ?int $categoryId = null
     ): ?float {
-        $section = $this->section($target, $storeId);
+        $section = $this->section($target, $storeId, $categoryId);
         if ($section === null) {
             return null;
         }
@@ -176,9 +192,10 @@ class ValueDiscrimination
         string $attributeCode,
         string $value,
         string $target = self::TARGET_NATIVE,
-        ?int $storeId = null
+        ?int $storeId = null,
+        ?int $categoryId = null
     ): bool {
-        $share = $this->getShare($attributeCode, $value, $target, $storeId);
+        $share = $this->getShare($attributeCode, $value, $target, $storeId, $categoryId);
 
         return $share !== null && $share > 0.0 && $share <= self::NEAR_UNIFORM_SHARE;
     }
@@ -209,12 +226,64 @@ class ValueDiscrimination
      *
      * @return array<string, mixed>|null
      */
-    private function section(string $target, ?int $storeId): ?array
+    private function section(string $target, ?int $storeId, ?int $categoryId = null): ?array
     {
-        $table = $this->load($this->resolveStoreId($storeId));
+        $storeId = $this->resolveStoreId($storeId);
+        if ($categoryId !== null && $categoryId > 0 && $target === self::TARGET_NATIVE) {
+            $scoped = $this->categorySection($storeId, $categoryId);
+            if ($scoped !== null) {
+                return $scoped;
+            }
+        }
+        $table = $this->load($storeId);
         $section = $table['targets'][$target] ?? null;
 
         return is_array($section) ? $section : null;
+    }
+
+    /**
+     * Whether a category listing is gated on its own population (true) or on the store's.
+     */
+    public function hasCategorySection(int $categoryId, ?int $storeId = null): bool
+    {
+        return $categoryId > 0 && $this->categorySection($this->resolveStoreId($storeId), $categoryId) !== null;
+    }
+
+    /**
+     * How many categories were large enough to be measured on their own.
+     */
+    public function getCategoriesMeasured(?int $storeId = null): int
+    {
+        $table = $this->load($this->resolveStoreId($storeId));
+
+        return (int) ($table['categories_measured'] ?? 0);
+    }
+
+    private function categorySection(int $storeId, int $categoryId): ?array
+    {
+        $key = $storeId . ':' . $categoryId;
+        if (array_key_exists($key, $this->categoryMemo)) {
+            return $this->categoryMemo[$key];
+        }
+        $section = null;
+        try {
+            $response = $this->client()->getOpenSearchClient()->get([
+                'index' => $this->indexNames->getValueDiscriminationIndexName(),
+                'id' => self::categoryDocId($storeId, $categoryId),
+            ]);
+            if (!empty($response['found']) && isset($response['_source']['total_docs'])) {
+                $section = $response['_source'];
+            }
+        } catch (\Throwable $e) {
+            $section = null;
+        }
+
+        return $this->categoryMemo[$key] = $section;
+    }
+
+    private static function categoryDocId(int $storeId, int $categoryId): string
+    {
+        return 'store:' . $storeId . ':cat:' . $categoryId;
     }
 
     /**
@@ -226,9 +295,10 @@ class ValueDiscrimination
     public function describe(
         string $attributeCode,
         string $target = self::TARGET_NATIVE,
-        ?int $storeId = null
+        ?int $storeId = null,
+        ?int $categoryId = null
     ): array {
-        $section = $this->section($target, $storeId);
+        $section = $this->section($target, $storeId, $categoryId);
         $total = (int) ($section['total_docs'] ?? 0);
         if ($section === null || $total <= 0) {
             return [];
@@ -293,10 +363,18 @@ class ValueDiscrimination
             return false;
         }
 
+        $categories = isset($targets[self::TARGET_NATIVE])
+            ? $this->measureByCategory(
+                $this->indexNameResolver->getIndexName($storeId, Fulltext::INDEXER_ID),
+                array_values(array_filter($attributeCodes, static fn ($c) => $c !== 'category'))
+            )
+            : [];
+
         $table = [
             'store_id' => $storeId,
             'built_at' => gmdate('c'),
             'targets' => $targets,
+            'categories_measured' => count($categories),
         ];
 
         try {
@@ -306,7 +384,9 @@ class ValueDiscrimination
                 'id' => 'store:' . $storeId,
                 'body' => $table,
             ]);
+            $this->saveCategorySections($storeId, $categories, (string) $table['built_at']);
             unset($this->memo[$storeId]);
+            $this->categoryMemo = [];
         } catch (\Throwable $e) {
             $this->writeLog->writeErrorLog(
                 '[FastMagento] discrimination save failed for store ' . $storeId . ': ' . $e->getMessage()
@@ -381,6 +461,117 @@ class ValueDiscrimination
     /**
      * @return array<string, mixed>|null
      */
+    /**
+     * Per-category value counts from the native index: one search per attribute, categories as
+     * the outer buckets (only those with MIN_CATEGORY_DOCS products or more), values inside.
+     *
+     * @return array<int, array{total_docs: int, attributes: array<string, array<string, int>>}>
+     */
+    private function measureByCategory(string $index, array $attributeCodes): array
+    {
+        $out = [];
+        foreach ($attributeCodes as $code) {
+            try {
+                $response = $this->client()->getOpenSearchClient()->search([
+                    'index' => $index,
+                    'body' => [
+                        'size' => 0,
+                        'aggs' => [
+                            'cats' => [
+                                'terms' => [
+                                    'field' => 'category_ids',
+                                    'size' => self::MAX_CATEGORIES,
+                                    'min_doc_count' => self::MIN_CATEGORY_DOCS,
+                                ],
+                                'aggs' => [
+                                    'vals' => [
+                                        'terms' => ['field' => $code, 'size' => self::MAX_VALUES_PER_ATTRIBUTE],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                $this->writeLog->writeErrorLog(
+                    '[FastMagento] category discrimination measure failed for ' . $code . ': ' . $e->getMessage()
+                );
+                continue;
+            }
+            foreach ($response['aggregations']['cats']['buckets'] ?? [] as $cat) {
+                $categoryId = (int) $cat['key'];
+                if ($categoryId <= 0) {
+                    continue;
+                }
+                $out[$categoryId]['total_docs'] = (int) $cat['doc_count'];
+                $out[$categoryId]['attributes'] ??= [];
+                foreach ($cat['vals']['buckets'] ?? [] as $bucket) {
+                    $key = (string) $bucket['key'];
+                    if ($key !== '') {
+                        $out[$categoryId]['attributes'][$code][$key] = (int) $bucket['doc_count'];
+                    }
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Replace this store's per-category docs. Old ones go first so a category that shrank below
+     * the threshold stops being gated on stale figures and falls back to the store-wide table.
+     */
+    private function saveCategorySections(int $storeId, array $categories, string $builtAt): void
+    {
+        $client = $this->client()->getOpenSearchClient();
+        $index = $this->indexNames->getValueDiscriminationIndexName();
+        try {
+            $client->deleteByQuery([
+                'index' => $index,
+                'refresh' => true,
+                'conflicts' => 'proceed',
+                'body' => ['query' => ['bool' => ['filter' => [
+                    ['term' => ['store_id' => $storeId]],
+                    ['exists' => ['field' => 'category_id']],
+                ]]]],
+            ]);
+        } catch (\Throwable $e) {
+            $this->writeLog->writeErrorLog(
+                '[FastMagento] category discrimination cleanup failed for store ' . $storeId . ': ' . $e->getMessage()
+            );
+        }
+        if (!$categories) {
+            return;
+        }
+        $body = [];
+        foreach ($categories as $categoryId => $section) {
+            $body[] = ['index' => ['_index' => $index, '_id' => self::categoryDocId($storeId, (int) $categoryId)]];
+            $body[] = [
+                'store_id' => $storeId,
+                'category_id' => (int) $categoryId,
+                'built_at' => $builtAt,
+                'total_docs' => (int) $section['total_docs'],
+                'attributes' => $section['attributes'] ?: new \stdClass(),
+            ];
+            if (count($body) >= 1000) {
+                $this->bulk($client, $body);
+                $body = [];
+            }
+        }
+        if ($body) {
+            $this->bulk($client, $body);
+        }
+    }
+
+    private function bulk($client, array $body): void
+    {
+        try {
+            $client->bulk(['body' => $body]);
+        } catch (\Throwable $e) {
+            $this->writeLog->writeErrorLog('[FastMagento] category discrimination save failed: ' . $e->getMessage());
+        }
+    }
+
     private function load(int $storeId): ?array
     {
         if (array_key_exists($storeId, $this->memo)) {
@@ -419,6 +610,8 @@ class ValueDiscrimination
             'mappings' => [
                 'properties' => [
                     'store_id' => ['type' => 'short'],
+                    'category_id' => ['type' => 'integer'],
+                    'categories_measured' => ['type' => 'integer'],
                     'built_at' => ['type' => 'date'],
                     'total_docs' => ['type' => 'integer'],
                     'source_index' => ['type' => 'keyword'],

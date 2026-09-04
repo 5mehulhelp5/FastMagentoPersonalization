@@ -28,6 +28,10 @@ class PersonalizationConfig
      * command and the refresh cron, because two defaults that can drift apart mean the cron
      * quietly rebuilds different profiles than the command that seeded them.
      */
+    /**
+     * @deprecated since 0.3.0 — the profiled attributes come from ProfileAttributes::resolve(),
+     *             which reads the catalogue. Kept so third-party code referencing it still loads.
+     */
     public const DEFAULT_PROFILE_ATTRIBUTES = ['color', 'size'];
 
     public const SURFACE_PLP = 'plp';
@@ -143,6 +147,20 @@ class PersonalizationConfig
      *
      * @return array<string, string>
      */
+    /**
+     * The merchant's explicit "Attributes To Profile" list. Blank means auto-detect from the
+     * catalogue's filterable attributes (see ProfileAttributes); this only returns what was typed.
+     *
+     * @return string[]
+     */
+    public function getProfileAttributeCodes(?int $storeId = null): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            'trim',
+            explode(',', (string) $this->value('profile_attributes', $storeId))
+        ))));
+    }
+
     public function getFactAttributes(?int $storeId = null): array
     {
         $out = [];

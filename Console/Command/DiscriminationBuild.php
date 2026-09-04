@@ -23,10 +23,9 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class DiscriminationBuild extends Command
 {
-    private const DEFAULT_ATTRIBUTES = 'color,size,category';
-
     public function __construct(
         private readonly State $appState,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileAttributes $profileAttributes,
         private readonly ValueDiscrimination $discrimination,
         ?string $name = null
     ) {
@@ -37,7 +36,8 @@ class DiscriminationBuild extends Command
     {
         $this->setName('fastmagento:personalization:discrimination')
             ->setDescription('Measure per-value catalogue discrimination (IDF) used to gate personalisation boosts')
-            ->addOption('attributes', null, InputOption::VALUE_REQUIRED, 'Attributes to measure', self::DEFAULT_ATTRIBUTES)
+            ->addOption('attributes', null, InputOption::VALUE_REQUIRED, 'Attributes to measure (blank = the profiled attributes plus category)', '')
+            ->addOption('category', null, InputOption::VALUE_REQUIRED, 'With --show: print the table as gated on this category listing')
             ->addOption('store', null, InputOption::VALUE_REQUIRED, 'Restrict to one store id')
             ->addOption('show', null, InputOption::VALUE_REQUIRED, 'Print the measured table for one attribute')
             ->addOption('target', null, InputOption::VALUE_REQUIRED, 'Which index to print: native (Magento, option ids) or serving (FastMagento, labels)', ValueDiscrimination::TARGET_NATIVE);
@@ -57,6 +57,9 @@ class DiscriminationBuild extends Command
             'trim',
             explode(',', (string) $input->getOption('attributes'))
         )));
+        if (!$attributes) {
+            $attributes = $this->profileAttributes->forDiscrimination();
+        }
         if (!$attributes) {
             $output->writeln('<error>--attributes resolved to an empty list.</error>');
 
@@ -92,9 +95,18 @@ class DiscriminationBuild extends Command
             ));
         }
 
+        $output->writeln(sprintf(
+            '  %-8s %d categor%s with %d+ products gated on their own population',
+            'category',
+            $this->discrimination->getCategoriesMeasured($storeId),
+            $this->discrimination->getCategoriesMeasured($storeId) === 1 ? 'y' : 'ies',
+            ValueDiscrimination::MIN_CATEGORY_DOCS
+        ));
+
         $show = (string) $input->getOption('show');
         if ($show !== '') {
-            $this->renderTable($output, $show, (string) $input->getOption('target'), $storeId);
+            $categoryId = $input->getOption('category') !== null ? (int) $input->getOption('category') : null;
+            $this->renderTable($output, $show, (string) $input->getOption('target'), $storeId, $categoryId);
         }
 
         $output->writeln('');
@@ -106,9 +118,17 @@ class DiscriminationBuild extends Command
         OutputInterface $output,
         string $attributeCode,
         string $target,
-        ?int $storeId
+        ?int $storeId,
+        ?int $categoryId = null
     ): void {
-        $rows = $this->discrimination->describe($attributeCode, $target, $storeId);
+        if ($categoryId !== null && !$this->discrimination->hasCategorySection($categoryId, $storeId)) {
+            $output->writeln(sprintf(
+                '<comment>Category %d has fewer than %d products, so listings there are gated on the store-wide table.</comment>',
+                $categoryId,
+                ValueDiscrimination::MIN_CATEGORY_DOCS
+            ));
+        }
+        $rows = $this->discrimination->describe($attributeCode, $target, $storeId, $categoryId);
         if (!$rows) {
             $output->writeln(sprintf(
                 '<comment>Nothing measured for "%s" on target "%s".</comment>',

@@ -43,6 +43,7 @@ class PersonalizationCheckProvider implements CheckProviderInterface
         private readonly \ParkkTech\FastMagentoPersonalization\Model\Analytics\CaptureMode $captureMode,
         private readonly \ParkkTech\FastMagentoPersonalization\Model\Analytics\AbReport $abReport,
         private readonly \Magento\Framework\Config\ScopeInterface $configScope,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileAttributes $profileAttributes,
         // Deliberately the object manager, not a narrower injected singleton. The interception
         // plugin list (and, in checkPersonalizationCacheWiring(), the event config) caches its
         // resolved data PER CONFIG SCOPE, so a fresh instance must be CREATED after the scope is
@@ -275,6 +276,34 @@ class PersonalizationCheckProvider implements CheckProviderInterface
             }
         }
 
+        // --- what shoppers are profiled ON: the resolved attribute list ------------------------
+        // Hard-wired colour/size was the silent failure on every non-apparel store: nothing was
+        // counted, nothing lifted, nothing said why. The list now comes from the catalogue, and
+        // this line is where an operator sees which attributes their shoppers are read on.
+        $resolved = $this->profileAttributes->describe();
+        if (!$resolved['codes']) {
+            $out[] = Check::warn(
+                self::G_PERSONALIZATION,
+                'Profiled attributes',
+                'None — no filterable select/multiselect attributes and none configured',
+                'Make the attributes shoppers choose by filterable (Stores > Attributes > Product > '
+                . 'Storefront Properties), or list them under Personalisation > Attributes To Profile'
+            );
+        } else {
+            $out[] = Check::ok(
+                self::G_PERSONALIZATION,
+                'Profiled attributes',
+                sprintf(
+                    '%s (%s%s)',
+                    implode(', ', $resolved['codes']),
+                    $resolved['source'] === $this->profileAttributes::SOURCE_CONFIGURED
+                        ? 'configured'
+                        : 'auto-detected from filterable attributes',
+                    $resolved['facts'] ? '; facts: ' . implode(', ', $resolved['facts']) : ''
+                )
+            );
+        }
+
         // --- boosts can MATTER: the catalogue-side discrimination table -----------------------
         if (!$this->valueDiscrimination->isAvailable(
             \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
@@ -306,13 +335,15 @@ class PersonalizationCheckProvider implements CheckProviderInterface
                     self::G_PERSONALIZATION,
                     'Discrimination table',
                     sprintf(
-                        '%d listing doc(s) / %d search doc(s), measured %s',
+                        '%d listing doc(s) / %d search doc(s), %d categor%s gated on their own population, measured %s',
                         $this->valueDiscrimination->getTotalDocs(
                             \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_NATIVE
                         ),
                         $this->valueDiscrimination->getTotalDocs(
                             \ParkkTech\FastMagentoPersonalization\Model\Personalization\ValueDiscrimination::TARGET_SERVING
                         ),
+                        $this->valueDiscrimination->getCategoriesMeasured(),
+                        $this->valueDiscrimination->getCategoriesMeasured() === 1 ? 'y' : 'ies',
                         (string) $builtAt
                     )
                 );

@@ -35,6 +35,8 @@
                      at all, and guessing would rank a catalogue on a coincidence. Unmapped
                      facts are still recorded and still shown to the shopper. -->
                 <fact_attributes></fact_attributes>
+                <!-- Blank = auto-detect from the catalogue: every filterable select/multiselect attribute. -->
+                <profile_attributes></profile_attributes>
                 <fact_weight>300</fact_weight>
                 <!-- §5 exploration: percent of page one lent to under-exposed products. Inert until
                      the master switch is on AND the exposure table has been measured. -->

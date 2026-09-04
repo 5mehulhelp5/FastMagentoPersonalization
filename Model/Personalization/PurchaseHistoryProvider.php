@@ -311,6 +311,46 @@ class PurchaseHistoryProvider
             return [];
         }
 
+        $own = $this->loadOwnValues($productIds, $attributeCodes);
+
+        // A purchased variant carries the attributes it varies on (colour, size) and nothing
+        // else: material, pattern, style, fit live on the configurable PARENT. Without inheriting
+        // them a shopper who buys wool coat after wool coat would never be seen to prefer wool.
+        // Own values win; a parent's only fill what the child does not have.
+        $parentsByChild = $this->withParents($productIds);
+        $parentIds = [];
+        foreach ($parentsByChild as $childId => $ids) {
+            foreach ($ids as $id) {
+                if ($id !== (int) $childId) {
+                    $parentIds[$id] = true;
+                }
+            }
+        }
+        if ($parentIds) {
+            $inherited = $this->loadOwnValues(array_keys($parentIds), $attributeCodes);
+            foreach ($parentsByChild as $childId => $ids) {
+                foreach ($ids as $parentId) {
+                    if ($parentId === (int) $childId) {
+                        continue;
+                    }
+                    foreach ($inherited[$parentId] ?? [] as $code => $value) {
+                        if (!isset($own[(int) $childId][$code])) {
+                            $own[(int) $childId][$code] = $value;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $own;
+    }
+
+    /**
+     * @return array<int, array<string, string|string[]>> product id => code => label(s)
+     */
+    private function loadOwnValues(array $productIds, array $attributeCodes): array
+    {
+
         $connection = $this->resource->getConnection();
         $select = $connection->select()
             ->from(['e' => $this->resource->getTableName('catalog_product_entity')], ['entity_id'])
@@ -338,6 +378,77 @@ class PurchaseHistoryProvider
                 ? (string) $row['label']
                 : (string) $row['value'];
             $out[(int) $row['entity_id']][(string) $row['attribute_code']] = $label;
+        }
+
+        foreach ($this->loadMultiselectValues($productIds, $attributeCodes) as $productId => $values) {
+            foreach ($values as $code => $labels) {
+                $out[$productId][$code] = $labels;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Multiselect attributes (material, pattern, features…) live in the TEXT table as a comma
+     * list of option ids, not in the INT table one row per value. A product that is "Cotton,
+     * Spandex" contributes both labels; the calculator splits its weight across them.
+     *
+     * @return array<int, array<string, string[]>> product id => code => labels
+     */
+    private function loadMultiselectValues(array $productIds, array $attributeCodes): array
+    {
+        $connection = $this->resource->getConnection();
+        $select = $connection->select()
+            ->from(['v' => $this->resource->getTableName('catalog_product_entity_text')], ['entity_id', 'value'])
+            ->join(
+                ['a' => $this->resource->getTableName('eav_attribute')],
+                'a.attribute_id = v.attribute_id',
+                ['attribute_code']
+            )
+            ->where('v.store_id = 0')
+            ->where('v.entity_id IN (?)', $productIds)
+            ->where('a.attribute_code IN (?)', $attributeCodes)
+            ->where('a.frontend_input = ?', 'multiselect')
+            ->where('v.value IS NOT NULL AND v.value <> ?', '');
+
+        $rows = $connection->fetchAll($select);
+        if (!$rows) {
+            return [];
+        }
+
+        $optionIds = [];
+        foreach ($rows as $row) {
+            foreach (explode(',', (string) $row['value']) as $id) {
+                if (ctype_digit(trim($id))) {
+                    $optionIds[(int) trim($id)] = true;
+                }
+            }
+        }
+        $labels = [];
+        if ($optionIds) {
+            $labelSelect = $connection->select()
+                ->from($this->resource->getTableName('eav_attribute_option_value'), ['option_id', 'value'])
+                ->where('store_id = 0')
+                ->where('option_id IN (?)', array_keys($optionIds));
+            foreach ($connection->fetchAll($labelSelect) as $row) {
+                $labels[(int) $row['option_id']] = (string) $row['value'];
+            }
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $values = [];
+            foreach (explode(',', (string) $row['value']) as $id) {
+                $id = trim($id);
+                if ($id === '') {
+                    continue;
+                }
+                $values[] = $labels[(int) $id] ?? $id;
+            }
+            if ($values) {
+                $out[(int) $row['entity_id']][(string) $row['attribute_code']] = array_values(array_unique($values));
+            }
         }
 
         return $out;

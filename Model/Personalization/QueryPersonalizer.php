@@ -217,7 +217,7 @@ class QueryPersonalizer
         }
 
         // Stated requirements rank first and are not subject to the cap below — see factBoosts().
-        $facts = $this->factBoosts($profile, $target, $storeId, $impact);
+        $facts = $this->factBoosts($profile, $target, $storeId, $impact, $categoryId);
         $spokenFor = array_column($facts, 'code');
 
         // On a category listing, what the shopper buys IN THIS CATEGORY outranks what they buy
@@ -269,11 +269,15 @@ class QueryPersonalizer
                 // Discrimination is always measured against the NATIVE index: that is where the
                 // rankable population lives, at the parent granularity these surfaces present.
                 $gateTerm = isset($valueIds[$label]) ? (string) $valueIds[$label] : $term;
+                // On a category listing the gate is the CATEGORY's population when it is large
+                // enough to have been measured on its own: a value that is rare store-wide but
+                // universal in this category cannot reorder this page, and must not try.
                 $idf = $this->discrimination->getIdf(
                     (string) $code,
                     $gateTerm,
                     ValueDiscrimination::TARGET_NATIVE,
-                    $storeId
+                    $storeId,
+                    $categoryId
                 );
                 if ($idf === null) {
                     // Never measured. An ungated boost is the silent-success bug this whole
@@ -285,7 +289,8 @@ class QueryPersonalizer
                     (string) $code,
                     $gateTerm,
                     ValueDiscrimination::TARGET_NATIVE,
-                    $storeId
+                    $storeId,
+                    $categoryId
                 );
                 if ($catalogueShare === null
                     || $catalogueShare <= 0.0
@@ -317,6 +322,10 @@ class QueryPersonalizer
                     'option_id' => isset($valueIds[$label]) ? (string) $valueIds[$label] : null,
                     'field' => $field,
                     'weight' => $uplift,
+                    'share' => $catalogueShare,
+                    'idf' => $idf,
+                    'gated_on' => $categoryId !== null
+                        && $this->discrimination->hasCategorySection($categoryId, $storeId) ? 'category' : 'store',
                 ];
             }
         }
@@ -343,7 +352,13 @@ class QueryPersonalizer
      * @param array<string, mixed> $profile
      * @return array<int, array<string, mixed>>
      */
-    private function factBoosts(array $profile, string $target, ?int $storeId, float $impact): array
+    private function factBoosts(
+        array $profile,
+        string $target,
+        ?int $storeId,
+        float $impact,
+        ?int $categoryId = null
+    ): array
     {
         $facts = $profile['facts'] ?? [];
         if (!is_array($facts) || !$facts) {
@@ -379,13 +394,15 @@ class QueryPersonalizer
                 $code,
                 $optionId,
                 ValueDiscrimination::TARGET_NATIVE,
-                $storeId
+                $storeId,
+                $categoryId
             );
             $share = $this->discrimination->getShare(
                 $code,
                 $optionId,
                 ValueDiscrimination::TARGET_NATIVE,
-                $storeId
+                $storeId,
+                $categoryId
             );
             if ($idf === null
                 || $share === null

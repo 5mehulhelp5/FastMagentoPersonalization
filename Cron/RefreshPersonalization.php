@@ -57,7 +57,8 @@ class RefreshPersonalization
         private readonly ValueDiscrimination $discrimination,
         private readonly ResourceConnection $resource,
         private readonly FlagManager $flagManager,
-        private readonly WriteLog $writeLog
+        private readonly WriteLog $writeLog,
+        private readonly \ParkkTech\FastMagentoPersonalization\Model\Personalization\ProfileAttributes $profileAttributes
     ) {
     }
 
@@ -76,7 +77,9 @@ class RefreshPersonalization
         // would silently drop everything that happened during the run.
         $this->flagManager->saveFlag(self::FLAG_LAST_RUN, gmdate('c'));
 
-        $attributes = PersonalizationConfig::DEFAULT_PROFILE_ATTRIBUTES;
+        // What this store's shoppers are profiled on: the admin list, or the catalogue's own
+        // filterable attributes when that is blank (see ProfileAttributes).
+        $attributes = $this->profileAttributes->resolve();
 
         try {
             $customerIds = array_slice(array_unique(array_merge(
@@ -145,13 +148,10 @@ class RefreshPersonalization
             return;
         }
 
-        // Base attributes plus whatever the merchant has mapped facts to. Without the second half,
-        // a fact mapping made in admin ranks nothing until somebody also runs the
-        // discrimination CLI with the right --attributes — a dependency nobody would guess.
-        $attributes = array_values(array_unique(array_merge(
-            ['color', 'size', 'category'],
-            array_values($this->config->getFactAttributes())
-        )));
+        // The profiled attributes (which already include whatever the merchant mapped facts to)
+        // plus `category`. Measured from the same resolver the profile build uses, so the two
+        // can never drift apart: a profiled value is always a gated value.
+        $attributes = $this->profileAttributes->forDiscrimination();
 
         $this->discrimination->rebuild($attributes);
     }
