@@ -8,7 +8,7 @@ Releases are cut automatically from `main` (see `.github/workflows/release.yml`)
 `#minor` / `feat:` for a minor bump, `#major` / `BREAKING CHANGE` for a major one, `[skip release]`
 to skip.
 
-## [Unreleased]
+## [0.2.0] - 2026-09-04
 
 ### Added
 - **Position-aware personalised category listings** (default on). The merchant's position order
