@@ -20,6 +20,22 @@ to skip.
   not failures. The provider still reports nothing at all when profile building is off, and the
   core doctor carries no personalisation checks — they exist only while this module is installed.
 
+## [0.1.4] - 2026-09-02
+
+### Fixed
+- A product page no longer records an impression of its own product (it inflated exposure for the product being viewed).
+
+## [0.1.3] - 2026-09-02
+
+### Fixed
+- Orders were never recorded for the A/B conversion rate; the report now has a denominator and a numerator.
+
+## [0.1.2] - 2026-09-02
+
+### Changed
+- The module owns the personalisation index names (`IndexNames`) instead of borrowing core's.
+- Beta planning, acceptance records and measurement harnesses moved into this package.
+
 ## [0.1.0]
 
 First standalone release of the personalisation feature, extracted from FastMagento core's
